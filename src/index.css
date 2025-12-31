@@ -297,3 +297,36 @@ tbody tr:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* Responsive styles - v2.1 */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  th, td {
+    padding: 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .glass-card {
+    border-radius: 12px;
+  }
+
+  input, select, textarea {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+  }
+
+  button {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  th, td {
+    padding: 0.5rem;
+    font-size: 0.75rem;
+  }
+}

@@ -1,4 +1,4 @@
-// v2.0 - Premium GP dashboard with glass cards and visual indicators
+// v2.1 - Premium GP dashboard with glass cards and visual indicators + responsive layout
 import { useData } from '../context/DataContext';
 import { projects, users } from '../data/mockData';
 import type { ProjectGrossProfit } from '../types';
@@ -93,8 +93,8 @@ export function GrossProfitDashboard() {
       {/* Summary Cards */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: '1rem',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+        gap: '0.75rem',
         marginBottom: '1.5rem',
       }}>
         <StatCard icon="💰" label="总收入" value={`¥${totals.revenue.toLocaleString()}`} color="#f8fafc" delay={0} />
@@ -109,9 +109,10 @@ export function GrossProfitDashboard() {
         backdropFilter: 'blur(20px)',
         border: '1px solid rgba(148, 163, 184, 0.1)',
         borderRadius: '16px',
-        overflow: 'hidden',
+        overflow: 'auto',
+        WebkitOverflowScrolling: 'touch',
       }}>
-        <table>
+        <table style={{ minWidth: '550px' }}>
           <thead>
             <tr>
               <th>项目</th>

@@ -1,4 +1,4 @@
-// v2.0 - Premium expense panel with glass cards and file upload
+// v2.1 - Premium expense panel with glass cards and file upload + responsive layout
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -210,9 +210,10 @@ export function ExpensePanel() {
         backdropFilter: 'blur(20px)',
         border: '1px solid rgba(148, 163, 184, 0.1)',
         borderRadius: '16px',
-        overflow: 'hidden',
+        overflow: 'auto',
+        WebkitOverflowScrolling: 'touch',
       }}>
-        <table>
+        <table style={{ minWidth: '700px' }}>
           <thead>
             <tr>
               <th>日期</th>

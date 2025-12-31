@@ -1,4 +1,4 @@
-// v2.0 - Premium timesheet panel with glass cards
+// v2.1 - Premium timesheet panel with glass cards + responsive layout
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -165,9 +165,10 @@ export function TimesheetPanel() {
         backdropFilter: 'blur(20px)',
         border: '1px solid rgba(148, 163, 184, 0.1)',
         borderRadius: '16px',
-        overflow: 'hidden',
+        overflow: 'auto',
+        WebkitOverflowScrolling: 'touch',
       }}>
-        <table>
+        <table style={{ minWidth: '600px' }}>
           <thead>
             <tr>
               <th>日期</th>
