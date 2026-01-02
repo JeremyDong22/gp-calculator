@@ -1,5 +1,5 @@
-// v3.3 - 工时填报模块
-// 更新：添加修改/删除功能，权限控制（仅所有者或部门负责人可操作）
+// v3.4 - 工时填报模块
+// 更新：修复审批权限，执行负责人只能审批自己负责项目的工时
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -28,7 +28,7 @@ const thStyle: React.CSSProperties = {
 };
 
 export function TimesheetPanel() {
-  const { currentUser, isDepartmentHead, isProjectManager, isSecretary } = useAuth();
+  const { currentUser, isDepartmentHead, isProjectManager, isSecretary, isExecutionLeaderOf } = useAuth();
   const { timesheets, projects, users, addTimesheet, updateTimesheet, deleteTimesheet, updateTimesheetStatus } = useData();
 
   if (isSecretary) {
@@ -52,7 +52,11 @@ export function TimesheetPanel() {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const canApprove = isDepartmentHead || isProjectManager;
+  const canApprove = (t: TimesheetEntry) => {
+    if (isDepartmentHead) return true;
+    if (isProjectManager && isExecutionLeaderOf(t.projectId, projects)) return true;
+    return false;
+  };
 
   // 可见工时记录
   const visibleTimesheets = useMemo(() => {
@@ -141,12 +145,12 @@ export function TimesheetPanel() {
       <div style={{ marginBottom: '1rem' }}>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f8fafc' }}>⏱️ 工时填报</h2>
         <p style={{ color: '#64748b', fontSize: '0.875rem' }}>
-          {canApprove ? '审核团队成员的工时记录' : '填报项目工时'}
+          {isDepartmentHead || isProjectManager ? '审核团队成员的工时记录' : '填报项目工时'}
         </p>
       </div>
 
       {/* 填报表单 */}
-      {!canApprove && (
+      {!isDepartmentHead && !isProjectManager && (
         <form onSubmit={handleSubmit} style={{
           background: 'rgba(30, 41, 59, 0.5)',
           borderRadius: '12px',
@@ -226,7 +230,7 @@ export function TimesheetPanel() {
               <th style={thStyle}>地点</th>
               {isDepartmentHead && <th style={{ ...thStyle, textAlign: 'right' }}>员工费率</th>}
               {isDepartmentHead && <th style={{ ...thStyle, textAlign: 'right' }}>人工成本</th>}
-              {canApprove && <th style={{ ...thStyle, textAlign: 'center' }}>操作</th>}
+              {(isDepartmentHead || isProjectManager) && <th style={{ ...thStyle, textAlign: 'center' }}>操作</th>}
               <th style={{ ...thStyle, textAlign: 'center' }}>状态</th>
             </tr>
           </thead>
@@ -282,10 +286,10 @@ export function TimesheetPanel() {
                   </td>
                   {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#fbbf24', fontSize: '0.875rem' }}>¥{(user?.dailyRate || 0).toLocaleString()}</td>}
                   {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#f87171', fontSize: '0.875rem' }}>¥{laborCost.toLocaleString()}</td>}
-                  {canApprove && (
+                  {(isDepartmentHead || isProjectManager) && (
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        {t.status === 'pending' && (
+                        {t.status === 'pending' && canApprove(t) && (
                           <>
                             <button onClick={() => updateTimesheetStatus(t.id, 'approved')} style={{
                               background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)',

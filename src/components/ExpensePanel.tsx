@@ -1,5 +1,5 @@
-// v4.1 - 差旅报销模块
-// 更新：执行负责人只能审批自己负责项目的费用
+// v4.2 - 差旅报销模块
+// 更新：地点字段从人员安排自动填充
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -38,7 +38,7 @@ interface ExpensePanelProps {
 
 export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
   const { currentUser, isDepartmentHead, isProjectManager, isSecretary, isExecutionLeaderOf } = useAuth();
-  const { expenses, projects, users, addExpense, updateExpense, deleteExpense, updateExpenseStatus } = useData();
+  const { expenses, projects, users, assignments, addExpense, updateExpense, deleteExpense, updateExpenseStatus } = useData();
   const [form, setForm] = useState({
     projectId: '',
     date: '',
@@ -266,7 +266,14 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>项目</label>
-              <select style={inputStyle} value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} required>
+              <select style={inputStyle} value={form.projectId} onChange={e => {
+                const projectId = e.target.value;
+                const recentAssignment = assignments
+                  .filter(a => a.assignments.some(pa => pa.projectId === projectId))
+                  .sort((a, b) => b.date.localeCompare(a.date))[0];
+                const location = recentAssignment?.assignments.find(pa => pa.projectId === projectId)?.location || '';
+                setForm({ ...form, projectId, location });
+              }} required>
                 <option value="">选择</option>
                 {projects.map(p => <option key={p.id} value={p.id}>{p.projectShortName}</option>)}
               </select>

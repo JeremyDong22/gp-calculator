@@ -1,5 +1,5 @@
-// v3.2 - 项目建项模块
-// 更新：委托方、付款方、项目简称字段内联编辑
+// v3.3 - 项目建项模块
+// 更新：合同金额输入框支持千分位显示
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -138,7 +138,16 @@ export function ProjectSetupPanel() {
             </div>
             <div>
               <label style={labelStyle}>合同金额</label>
-              <input style={{ ...inputStyle, width: '100%' }} type="number" value={form.contractAmount} onChange={e => setForm({ ...form, contractAmount: Number(e.target.value) })} required />
+              <input
+                style={{ ...inputStyle, width: '100%' }}
+                type="text"
+                value={formatNumber(form.contractAmount)}
+                onChange={e => {
+                  const val = e.target.value.replace(/,/g, '');
+                  setForm({ ...form, contractAmount: Number(val) || 0 });
+                }}
+                required
+              />
             </div>
             <div>
               <label style={labelStyle}>开发负责人</label>
