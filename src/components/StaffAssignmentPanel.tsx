@@ -1,5 +1,5 @@
-// v1.0 - 人员安排表模块
-// 功能：日历视图显示每人每天的项目安排，类似Excel排班表
+// v3.1 - 人员安排表模块
+// 更新：使用projectShortName、支持多项目安排、assignments数组结构
 import { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 
@@ -21,6 +21,11 @@ const projectColors = [
 export function StaffAssignmentPanel() {
   const { users, projects, assignments, addAssignment, deleteAssignment } = useData();
   const [weekOffset, setWeekOffset] = useState(0);
+
+  // 按级别排序用户
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => a.level - b.level);
+  }, [users]);
 
   // 生成当前周的日期
   const weekDates = useMemo(() => {
@@ -45,9 +50,10 @@ export function StaffAssignmentPanel() {
     return assignments.find(a => a.userId === userId && a.date === date);
   };
 
-  const getProjectName = (projectId: string) => {
-    if (!projectId) return 'Available';
-    return projects.find(p => p.id === projectId)?.projectName || '-';
+  const getProjectName = (projectId: string, customName?: string) => {
+    if (projectId === 'custom' && customName) return customName;
+    if (!projectId) return '';
+    return projects.find(p => p.id === projectId)?.projectShortName || '-';
   };
 
   const handleCellClick = (userId: string, date: string) => {
@@ -56,14 +62,18 @@ export function StaffAssignmentPanel() {
       deleteAssignment(existing.id);
     } else {
       const projectId = projects[0]?.id || '';
-      addAssignment({ userId, projectId, date, location: '北京' });
+      addAssignment({
+        userId,
+        date,
+        assignments: [{ projectId, location: '北京' }],
+      });
     }
   };
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f8fafc' }}>人员安排表</h2>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f8fafc' }}>📅 人员安排表</h2>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button onClick={() => setWeekOffset(w => w - 1)} style={{
             padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.2)',
@@ -98,19 +108,21 @@ export function StaffAssignmentPanel() {
             </tr>
           </thead>
           <tbody>
-            {users.map(user => (
+            {sortedUsers.map(user => (
               <tr key={user.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
                 <td style={{
                   padding: '0.5rem 0.75rem', color: '#f8fafc', fontSize: '0.875rem',
                   position: 'sticky', left: 0, background: 'rgba(30, 41, 59, 0.9)'
                 }}>
-                  {user.name}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>{user.name}</span>
+                    <span style={{ fontSize: '0.625rem', color: '#64748b' }}>L{user.level}</span>
+                  </div>
                 </td>
                 {weekDates.map((date, i) => {
                   const assignment = getAssignment(user.id, date);
-                  const projectName = assignment ? getProjectName(assignment.projectId) : '';
-                  const location = assignment?.location || '';
-                  const bgColor = assignment?.projectId ? getProjectColor(assignment.projectId) : 'transparent';
+                  // 支持多项目显示
+                  const assignmentList = assignment?.assignments || [];
 
                   return (
                     <td
@@ -123,17 +135,24 @@ export function StaffAssignmentPanel() {
                         background: i >= 5 ? 'rgba(251, 191, 36, 0.05)' : 'transparent',
                       }}
                     >
-                      {assignment && (
-                        <div style={{
-                          background: bgColor,
-                          color: 'white',
-                          padding: '0.5rem 0.25rem',
-                          borderRadius: '4px',
-                          fontSize: '0.7rem',
-                          lineHeight: 1.3,
-                        }}>
-                          <div style={{ fontWeight: 500 }}>{projectName}</div>
-                          <div style={{ opacity: 0.8 }}>({location})</div>
+                      {assignmentList.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
+                          {assignmentList.map((a, idx) => {
+                            const bgColor = a.projectId === 'custom' ? '#64748b' : getProjectColor(a.projectId);
+                            return (
+                              <div key={idx} style={{
+                                background: bgColor,
+                                color: 'white',
+                                padding: '0.375rem 0.25rem',
+                                borderRadius: '4px',
+                                fontSize: '0.7rem',
+                                lineHeight: 1.3,
+                              }}>
+                                <div style={{ fontWeight: 500 }}>{getProjectName(a.projectId, a.customProjectName)}</div>
+                                <div style={{ opacity: 0.8 }}>({a.location})</div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </td>
@@ -151,7 +170,7 @@ export function StaffAssignmentPanel() {
         {projects.map((p, i) => (
           <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
             <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: projectColors[i % projectColors.length] }} />
-            <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{p.projectName}</span>
+            <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{p.projectShortName}</span>
           </div>
         ))}
       </div>

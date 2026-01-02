@@ -1,21 +1,23 @@
-// v3.0 - 咨询部-项目管理系统（工时、报销）
-// 更新：新增9个Tab模块，支持5种角色权限
+// v3.3 - 咨询部-项目管理系统（工时、报销）
+// 更新：添加项目控制表Tab
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { QuickLogin } from './components/QuickLogin';
+import { LoginPage } from './components/LoginPage';
 import { ProjectSetupPanel } from './components/ProjectSetupPanel';
 import { StaffSetupPanel } from './components/StaffSetupPanel';
 import { StaffAssignmentPanel } from './components/StaffAssignmentPanel';
 import { TimesheetPanel } from './components/TimesheetPanel';
 import { ExpensePanel } from './components/ExpensePanel';
 import { GrossProfitDashboard } from './components/GrossProfitDashboard';
-import { BonusCalculationPanel } from './components/BonusCalculationPanel';
 import { CashReceiptPanel } from './components/CashReceiptPanel';
-import { DepartmentProfitPanel } from './components/DepartmentProfitPanel';
+import { ExecutorColorConfigPanel } from './components/ExecutorColorConfigPanel';
+import { TimesheetSummaryPanel } from './components/TimesheetSummaryPanel';
+import { ProjectControlPanel } from './components/ProjectControlPanel';
 import './index.css';
 
-type Tab = 'project' | 'staff' | 'assignment' | 'timesheet' | 'expense' | 'gp' | 'bonus' | 'cash' | 'profit';
+type Tab = 'project' | 'staff' | 'assignment' | 'timesheet' | 'expense' | 'gp' | 'cash' | 'color' | 'summary' | 'control';
 
 const roleLabels: Record<string, string> = {
   employee: '员工',
@@ -26,10 +28,15 @@ const roleLabels: Record<string, string> = {
 };
 
 function MainApp() {
-  const { currentUser, logout, isDepartmentHead, isProjectManager, isSecretary } = useAuth();
+  const { currentUser, logout, isTestMode, setTestMode, isDepartmentHead, isProjectManager, isSecretary } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('timesheet');
 
-  if (!currentUser) return <QuickLogin />;
+  // 未登录时显示登录页面
+  if (!currentUser) {
+    return isTestMode
+      ? <QuickLogin onSwitchToLogin={() => setTestMode(false)} />
+      : <LoginPage onSwitchToTestMode={() => setTestMode(true)} />;
+  }
 
   const canManage = isDepartmentHead || isProjectManager;
 
@@ -40,10 +47,11 @@ function MainApp() {
     { id: 'assignment' as Tab, label: '人员安排', icon: '📅', show: canManage },
     { id: 'timesheet' as Tab, label: '工时填报', icon: '⏱️', show: true },
     { id: 'expense' as Tab, label: '差旅报销', icon: '✈️', show: true },
+    { id: 'summary' as Tab, label: '工时汇总', icon: '📋', show: canManage },
+    { id: 'control' as Tab, label: '项目控制表', icon: '📑', show: canManage },
     { id: 'gp' as Tab, label: '项目毛利分析', icon: '📊', show: isDepartmentHead },
-    { id: 'bonus' as Tab, label: '员工奖金计算', icon: '🎁', show: isDepartmentHead },
     { id: 'cash' as Tab, label: '现金收款表', icon: '💵', show: isDepartmentHead },
-    { id: 'profit' as Tab, label: '部门利润表', icon: '📋', show: isDepartmentHead },
+    { id: 'color' as Tab, label: '颜色配置', icon: '🎨', show: isDepartmentHead },
   ].filter(t => t.show);
 
   const roleGradient = isDepartmentHead
@@ -89,6 +97,29 @@ function MainApp() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {/* 测试模式开关 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.75rem', color: isTestMode ? '#fbbf24' : '#64748b' }}>
+              {isTestMode ? '测试' : '正式'}
+            </span>
+            <button
+              onClick={() => setTestMode(!isTestMode)}
+              style={{
+                width: '40px', height: '20px', borderRadius: '10px',
+                background: isTestMode ? 'rgba(251, 191, 36, 0.3)' : 'rgba(148, 163, 184, 0.2)',
+                border: 'none', cursor: 'pointer', position: 'relative',
+                transition: 'all 0.2s',
+              }}
+            >
+              <div style={{
+                width: '16px', height: '16px', borderRadius: '50%',
+                background: isTestMode ? '#fbbf24' : '#64748b',
+                position: 'absolute', top: '2px',
+                left: isTestMode ? '22px' : '2px',
+                transition: 'all 0.2s',
+              }} />
+            </button>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <div style={{
               width: '32px', height: '32px', borderRadius: '8px',
@@ -184,10 +215,11 @@ function MainApp() {
         {activeTab === 'assignment' && <StaffAssignmentPanel />}
         {activeTab === 'timesheet' && <TimesheetPanel />}
         {activeTab === 'expense' && <ExpensePanel />}
+        {activeTab === 'summary' && <TimesheetSummaryPanel />}
+        {activeTab === 'control' && <ProjectControlPanel />}
         {activeTab === 'gp' && <GrossProfitDashboard />}
-        {activeTab === 'bonus' && <BonusCalculationPanel />}
         {activeTab === 'cash' && <CashReceiptPanel />}
-        {activeTab === 'profit' && <DepartmentProfitPanel />}
+        {activeTab === 'color' && <ExecutorColorConfigPanel />}
       </main>
     </div>
   );

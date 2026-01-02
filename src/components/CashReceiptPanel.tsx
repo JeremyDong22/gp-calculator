@@ -1,6 +1,6 @@
-// v1.0 - 现金收款表模块
-// 功能：记录项目收款情况，仅部门负责人可见
-import { useState } from 'react';
+// v3.1 - 现金收款表模块
+// 更新：使用新字段结构（receiptDate, financeReceipt, confirmedReceipt, 拆分字段等）
+import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 
@@ -13,36 +13,104 @@ const cardStyle: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.75rem',
-  borderRadius: '8px',
+  padding: '0.5rem',
+  borderRadius: '6px',
   border: '1px solid rgba(148, 163, 184, 0.2)',
   background: 'rgba(15, 23, 42, 0.5)',
   color: '#f8fafc',
-  fontSize: '0.875rem',
+  fontSize: '0.8125rem',
+};
+
+const thStyle: React.CSSProperties = {
+  padding: '0.75rem 0.5rem',
+  textAlign: 'left',
+  color: '#94a3b8',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  position: 'sticky',
+  top: 0,
+  background: 'rgba(30, 41, 59, 0.95)',
+  zIndex: 10,
 };
 
 export function CashReceiptPanel() {
   const { isDepartmentHead } = useAuth();
-  const { cashReceipts, projects, addCashReceipt } = useData();
+  const { cashReceipts, projects, users, addCashReceipt } = useData();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ projectId: '', date: '', amount: '', remark: '' });
+  const [form, setForm] = useState({
+    projectId: '',
+    receiptDate: '',
+    financeReceipt: '',
+    confirmedReceipt: '',
+    developmentSplit: '',
+    departmentSplit: '',
+    otherSplit: '',
+    invoiceDate: '',
+    remark: '',
+  });
+
+  // 获取项目信息
+  const getProject = (id: string) => projects.find(p => p.id === id);
+  const getUser = (id: string) => users.find(u => u.id === id);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addCashReceipt({ projectId: form.projectId, date: form.date, amount: Number(form.amount), remark: form.remark });
-    setForm({ projectId: '', date: '', amount: '', remark: '' });
+    const project = getProject(form.projectId);
+    const confirmedReceipt = Number(form.confirmedReceipt) || 0;
+    const developmentSplit = Number(form.developmentSplit) || 0;
+    const departmentSplit = Number(form.departmentSplit) || 0;
+    const otherSplit = Number(form.otherSplit) || 0;
+
+    addCashReceipt({
+      projectId: form.projectId,
+      receiptDate: form.receiptDate,
+      payer: project?.payer || '',
+      executionLeaderId: project?.executionLeaderId || '',
+      financeReceipt: Number(form.financeReceipt) || 0,
+      confirmedReceipt,
+      developmentSplit,
+      departmentSplit,
+      otherSplit,
+      invoiceDate: form.invoiceDate || undefined,
+      remark: form.remark,
+    });
+    setForm({ projectId: '', receiptDate: '', financeReceipt: '', confirmedReceipt: '', developmentSplit: '', departmentSplit: '', otherSplit: '', invoiceDate: '', remark: '' });
     setShowForm(false);
   };
 
-  const getProjectName = (id: string) => projects.find(p => p.id === id)?.projectName || '-';
-
-  const totalReceived = cashReceipts.reduce((sum, r) => sum + r.amount, 0);
+  // 汇总统计
+  const totals = useMemo(() => {
+    return cashReceipts.reduce((acc, r) => ({
+      financeReceipt: acc.financeReceipt + r.financeReceipt,
+      confirmedReceipt: acc.confirmedReceipt + r.confirmedReceipt,
+      developmentSplit: acc.developmentSplit + r.developmentSplit,
+      departmentSplit: acc.departmentSplit + r.departmentSplit,
+      otherSplit: acc.otherSplit + r.otherSplit,
+      adjustedReceipt: acc.adjustedReceipt + r.adjustedReceipt,
+    }), { financeReceipt: 0, confirmedReceipt: 0, developmentSplit: 0, departmentSplit: 0, otherSplit: 0, adjustedReceipt: 0 });
+  }, [cashReceipts]);
 
   const exportToExcel = () => {
-    const headers = ['日期', '项目', '金额', '备注'];
-    const rows = cashReceipts.map(r => [r.date, getProjectName(r.projectId), r.amount, r.remark || '']);
-    rows.push(['合计', '', totalReceived, '']);
+    const headers = ['收款日期', '项目简称', '付款方', '执行负责人', '财务收款', '部门确认收款', '开发拆分', '部门拆分', '其他拆分', '调整后收款', '开票日期', '备注'];
+    const rows = cashReceipts.map(r => {
+      const project = getProject(r.projectId);
+      const executor = getUser(r.executionLeaderId);
+      return [
+        r.receiptDate,
+        project?.projectShortName || '',
+        r.payer,
+        executor?.name || project?.executionLeaderName || '',
+        r.financeReceipt,
+        r.confirmedReceipt,
+        r.developmentSplit,
+        r.departmentSplit,
+        r.otherSplit,
+        r.adjustedReceipt,
+        r.invoiceDate || '',
+        r.remark || '',
+      ];
+    });
+    rows.push(['合计', '', '', '', totals.financeReceipt, totals.confirmedReceipt, totals.developmentSplit, totals.departmentSplit, totals.otherSplit, totals.adjustedReceipt, '', '']);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -76,37 +144,67 @@ export function CashReceiptPanel() {
         </div>
       </div>
 
-      {/* Summary */}
-      <div style={cardStyle}>
-        <div style={{ color: '#64748b', fontSize: '0.75rem', marginBottom: '0.25rem' }}>💰 累计收款</div>
-        <div style={{ color: '#34d399', fontSize: '1.5rem', fontWeight: 700 }}>¥{totalReceived.toLocaleString()}</div>
+      {/* 汇总卡片 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={cardStyle}>
+          <div style={{ color: '#64748b', fontSize: '0.75rem', marginBottom: '0.25rem' }}>💰 财务收款</div>
+          <div style={{ color: '#3b82f6', fontSize: '1.25rem', fontWeight: 600 }}>¥{totals.financeReceipt.toLocaleString()}</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ color: '#64748b', fontSize: '0.75rem', marginBottom: '0.25rem' }}>✅ 部门确认</div>
+          <div style={{ color: '#06d6a0', fontSize: '1.25rem', fontWeight: 600 }}>¥{totals.confirmedReceipt.toLocaleString()}</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ color: '#64748b', fontSize: '0.75rem', marginBottom: '0.25rem' }}>📊 调整后收款</div>
+          <div style={{ color: '#fbbf24', fontSize: '1.25rem', fontWeight: 600 }}>¥{totals.adjustedReceipt.toLocaleString()}</div>
+        </div>
       </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} style={cardStyle}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>项目</label>
-              <select style={inputStyle} value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} required>
-                <option value="">选择项目</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>项目</label>
+              <select style={{ ...inputStyle, width: '100%' }} value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} required>
+                <option value="">选择</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.projectShortName}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>日期</label>
-              <input type="date" style={inputStyle} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required />
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>收款日期</label>
+              <input type="date" style={{ ...inputStyle, width: '100%' }} value={form.receiptDate} onChange={e => setForm({ ...form, receiptDate: e.target.value })} required />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>金额</label>
-              <input type="number" style={inputStyle} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required />
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>财务收款</label>
+              <input type="number" style={{ ...inputStyle, width: '100%' }} value={form.financeReceipt} onChange={e => setForm({ ...form, financeReceipt: e.target.value })} required />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>备注</label>
-              <input type="text" style={inputStyle} value={form.remark} onChange={e => setForm({ ...form, remark: e.target.value })} />
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>部门确认收款</label>
+              <input type="number" style={{ ...inputStyle, width: '100%' }} value={form.confirmedReceipt} onChange={e => setForm({ ...form, confirmedReceipt: e.target.value })} required />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>开发拆分</label>
+              <input type="number" style={{ ...inputStyle, width: '100%' }} value={form.developmentSplit} onChange={e => setForm({ ...form, developmentSplit: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>部门拆分</label>
+              <input type="number" style={{ ...inputStyle, width: '100%' }} value={form.departmentSplit} onChange={e => setForm({ ...form, departmentSplit: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>其他拆分</label>
+              <input type="number" style={{ ...inputStyle, width: '100%' }} value={form.otherSplit} onChange={e => setForm({ ...form, otherSplit: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>开票日期</label>
+              <input type="date" style={{ ...inputStyle, width: '100%' }} value={form.invoiceDate} onChange={e => setForm({ ...form, invoiceDate: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>备注</label>
+              <input type="text" style={{ ...inputStyle, width: '100%' }} value={form.remark} onChange={e => setForm({ ...form, remark: e.target.value })} />
             </div>
           </div>
           <button type="submit" style={{
-            marginTop: '1rem', padding: '0.75rem 1.5rem', borderRadius: '8px', border: 'none',
+            marginTop: '0.75rem', padding: '0.5rem 1.5rem', borderRadius: '8px', border: 'none',
             background: 'linear-gradient(135deg, #06d6a0, #118ab2)', color: 'white', cursor: 'pointer'
           }}>
             添加收款
@@ -114,25 +212,55 @@ export function CashReceiptPanel() {
         </form>
       )}
 
-      <div style={{ ...cardStyle, overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ ...cardStyle, overflow: 'auto', maxHeight: '70vh' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-              <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>日期</th>
-              <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>项目</th>
-              <th style={{ padding: '0.75rem', textAlign: 'right', color: '#94a3b8', fontSize: '0.75rem' }}>金额</th>
-              <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>备注</th>
+            <tr>
+              <th style={thStyle}>收款日期</th>
+              <th style={thStyle}>项目简称</th>
+              <th style={thStyle}>付款方</th>
+              <th style={thStyle}>执行负责人</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>财务收款</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>部门确认</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>开发拆分</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>部门拆分</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>其他拆分</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>调整后收款</th>
+              <th style={thStyle}>开票日期</th>
+              <th style={thStyle}>备注</th>
             </tr>
           </thead>
           <tbody>
-            {cashReceipts.map(r => (
-              <tr key={r.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
-                <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{r.date}</td>
-                <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{getProjectName(r.projectId)}</td>
-                <td style={{ padding: '0.75rem', textAlign: 'right', color: '#34d399', fontWeight: 600 }}>¥{r.amount.toLocaleString()}</td>
-                <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.875rem' }}>{r.remark || '-'}</td>
-              </tr>
-            ))}
+            {cashReceipts.map(r => {
+              const project = getProject(r.projectId);
+              const executor = getUser(r.executionLeaderId);
+              return (
+                <tr key={r.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                  <td style={{ padding: '0.75rem 0.5rem', color: '#f8fafc', fontSize: '0.875rem' }}>{r.receiptDate}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', color: '#06d6a0', fontSize: '0.875rem' }}>{project?.projectShortName || '-'}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>{r.payer}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>{executor?.name || project?.executionLeaderName || '-'}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#3b82f6' }}>¥{r.financeReceipt.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#06d6a0' }}>¥{r.confirmedReceipt.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171' }}>¥{r.developmentSplit.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171' }}>¥{r.departmentSplit.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171' }}>¥{r.otherSplit.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#fbbf24', fontWeight: 600 }}>¥{r.adjustedReceipt.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>{r.invoiceDate || '-'}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', color: '#64748b', fontSize: '0.875rem' }}>{r.remark || '-'}</td>
+                </tr>
+              );
+            })}
+            <tr style={{ background: 'rgba(6, 214, 160, 0.05)' }}>
+              <td colSpan={4} style={{ padding: '0.75rem 0.5rem', color: '#06d6a0', fontWeight: 700 }}>📊 合计</td>
+              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#3b82f6', fontWeight: 600 }}>¥{totals.financeReceipt.toLocaleString()}</td>
+              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#06d6a0', fontWeight: 600 }}>¥{totals.confirmedReceipt.toLocaleString()}</td>
+              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171', fontWeight: 600 }}>¥{totals.developmentSplit.toLocaleString()}</td>
+              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171', fontWeight: 600 }}>¥{totals.departmentSplit.toLocaleString()}</td>
+              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171', fontWeight: 600 }}>¥{totals.otherSplit.toLocaleString()}</td>
+              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#fbbf24', fontWeight: 700 }}>¥{totals.adjustedReceipt.toLocaleString()}</td>
+              <td colSpan={2}></td>
+            </tr>
           </tbody>
         </table>
       </div>

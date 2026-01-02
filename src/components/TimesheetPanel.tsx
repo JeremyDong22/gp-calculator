@@ -1,6 +1,5 @@
-// v3.0 - 工时填报模块
-// 更新：支持多项目/多时段、工作地点、项目类型、费率和人工成本列（部门负责人可见）
-// 限制：每天最多8小时，每周5天
+// v3.1 - 工时填报模块
+// 更新：使用startDate/endDate、totalHours、dailyWage计算人工成本
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -16,21 +15,32 @@ const inputStyle: React.CSSProperties = {
   fontSize: '0.8125rem',
 };
 
+const thStyle: React.CSSProperties = {
+  padding: '0.75rem 0.5rem',
+  textAlign: 'left',
+  color: '#94a3b8',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  position: 'sticky',
+  top: 0,
+  background: 'rgba(30, 41, 59, 0.95)',
+  zIndex: 10,
+};
+
 export function TimesheetPanel() {
   const { currentUser, isDepartmentHead, isProjectManager } = useAuth();
   const { timesheets, projects, users, addTimesheet, updateTimesheetStatus } = useData();
   const [form, setForm] = useState({
     projectId: '',
-    date: '',
-    hours: '',
+    startDate: '',
+    endDate: '',
+    totalHours: '',
     location: '',
-    projectType: '',
-    period: 'morning' as 'morning' | 'afternoon' | 'evening',
   });
 
   const canApprove = isDepartmentHead || isProjectManager;
 
-  // 可见工时记录：部门负责人看全部，项目负责人看自己+员工，其他只看自己
+  // 可见工时记录
   const visibleTimesheets = useMemo(() => {
     if (isDepartmentHead) return timesheets;
     if (isProjectManager) {
@@ -42,41 +52,23 @@ export function TimesheetPanel() {
     return timesheets.filter(t => t.userId === currentUser?.id);
   }, [timesheets, currentUser, isDepartmentHead, isProjectManager, users]);
 
-  // 检查当天工时是否超过8小时
-  const getDayTotalHours = (date: string, userId: string) => {
-    return timesheets
-      .filter(t => t.date === date && t.userId === userId)
-      .reduce((sum, t) => sum + t.hours, 0);
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !form.projectId || !form.date || !form.hours) return;
-
-    const hours = Number(form.hours);
-    const currentDayTotal = getDayTotalHours(form.date, currentUser.id);
-
-    if (currentDayTotal + hours > 8) {
-      alert(`当天已填报${currentDayTotal}小时，最多还能填报${8 - currentDayTotal}小时`);
-      return;
-    }
+    if (!currentUser || !form.projectId || !form.startDate || !form.endDate || !form.totalHours) return;
 
     addTimesheet({
       userId: currentUser.id,
       projectId: form.projectId,
-      date: form.date,
-      hours,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      totalHours: Number(form.totalHours),
       location: form.location,
-      projectType: form.projectType,
-      period: form.period,
     });
-    setForm({ projectId: '', date: '', hours: '', location: '', projectType: '', period: 'morning' });
+    setForm({ projectId: '', startDate: '', endDate: '', totalHours: '', location: '' });
   };
 
   const getUser = (id: string) => users.find(u => u.id === id);
   const getProject = (id: string) => projects.find(p => p.id === id);
-
-  const periodLabels = { morning: '上午', afternoon: '下午', evening: '晚上' };
 
   const StatusBadge = ({ status }: { status: TimesheetEntry['status'] }) => {
     const styles: Record<string, { bg: string; color: string; label: string }> = {
@@ -103,7 +95,7 @@ export function TimesheetPanel() {
       <div style={{ marginBottom: '1rem' }}>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f8fafc' }}>⏱️ 工时填报</h2>
         <p style={{ color: '#64748b', fontSize: '0.875rem' }}>
-          {canApprove ? '审核团队成员的工时记录' : '每天最多8小时，每周5天'}
+          {canApprove ? '审核团队成员的工时记录' : '填报项目工时'}
         </p>
       </div>
 
@@ -121,32 +113,24 @@ export function TimesheetPanel() {
               <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>项目</label>
               <select style={inputStyle} value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} required>
                 <option value="">选择</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+                {projects.map(p => <option key={p.id} value={p.id}>{p.projectShortName}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>日期</label>
-              <input type="date" style={inputStyle} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required />
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>开始日期</label>
+              <input type="date" style={inputStyle} value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} required />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>时段</label>
-              <select style={inputStyle} value={form.period} onChange={e => setForm({ ...form, period: e.target.value as 'morning' | 'afternoon' | 'evening' })}>
-                <option value="morning">上午</option>
-                <option value="afternoon">下午</option>
-                <option value="evening">晚上</option>
-              </select>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>结束日期</label>
+              <input type="date" style={inputStyle} value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })} required />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>工时</label>
-              <input type="number" style={inputStyle} value={form.hours} onChange={e => setForm({ ...form, hours: e.target.value })} min="0.5" max="8" step="0.5" required />
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>累计工时</label>
+              <input type="number" style={inputStyle} value={form.totalHours} onChange={e => setForm({ ...form, totalHours: e.target.value })} min="0.5" step="0.5" required />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>工作地点</label>
               <input type="text" style={inputStyle} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="北京" />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>项目类型</label>
-              <input type="text" style={inputStyle} value={form.projectType} onChange={e => setForm({ ...form, projectType: e.target.value })} placeholder="需求分析" />
             </div>
           </div>
           <button type="submit" style={{
@@ -170,30 +154,31 @@ export function TimesheetPanel() {
         borderRadius: '12px',
         border: '1px solid rgba(148, 163, 184, 0.1)',
         overflow: 'auto',
+        maxHeight: '70vh',
       }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isDepartmentHead ? '1000px' : '800px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isDepartmentHead ? '900px' : '700px' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-              <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>日期</th>
-              <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>员工</th>
-              <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>项目</th>
-              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>时段</th>
-              <th style={{ padding: '0.75rem', textAlign: 'right', color: '#94a3b8', fontSize: '0.75rem' }}>工时</th>
-              <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>地点</th>
-              {isDepartmentHead && <th style={{ padding: '0.75rem', textAlign: 'right', color: '#94a3b8', fontSize: '0.75rem' }}>费率</th>}
-              {isDepartmentHead && <th style={{ padding: '0.75rem', textAlign: 'right', color: '#94a3b8', fontSize: '0.75rem' }}>人工成本</th>}
-              <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>项目类型</th>
-              <th style={{ padding: '0.75rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>状态</th>
-              {canApprove && <th style={{ padding: '0.75rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>操作</th>}
+            <tr>
+              <th style={thStyle}>项目</th>
+              <th style={thStyle}>员工</th>
+              <th style={thStyle}>开始日期</th>
+              <th style={thStyle}>结束日期</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>累计工时</th>
+              <th style={thStyle}>地点</th>
+              {isDepartmentHead && <th style={{ ...thStyle, textAlign: 'right' }}>日工资</th>}
+              {isDepartmentHead && <th style={{ ...thStyle, textAlign: 'right' }}>人工成本</th>}
+              <th style={{ ...thStyle, textAlign: 'center' }}>状态</th>
+              {canApprove && <th style={{ ...thStyle, textAlign: 'center' }}>操作</th>}
             </tr>
           </thead>
           <tbody>
             {visibleTimesheets.map(t => {
               const user = getUser(t.userId);
-              const laborCost = (user?.hourlyRate || 0) * t.hours;
+              // 人工成本 = 累计工时 × 日工资 ÷ 8
+              const laborCost = (t.totalHours * (user?.dailyWage || 0)) / 8;
               return (
                 <tr key={t.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
-                  <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{t.date}</td>
+                  <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{getProject(t.projectId)?.projectShortName}</td>
                   <td style={{ padding: '0.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <div style={{
@@ -207,13 +192,12 @@ export function TimesheetPanel() {
                       <span style={{ color: '#f8fafc', fontSize: '0.875rem' }}>{user?.name}</span>
                     </div>
                   </td>
-                  <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{getProject(t.projectId)?.projectName}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center', color: '#64748b', fontSize: '0.75rem' }}>{periodLabels[t.period]}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', color: '#06d6a0', fontWeight: 600 }}>{t.hours}h</td>
+                  <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{t.startDate}</td>
+                  <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{t.endDate}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right', color: '#06d6a0', fontWeight: 600 }}>{t.totalHours}h</td>
                   <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{t.location || '-'}</td>
-                  {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#fbbf24', fontSize: '0.875rem' }}>¥{user?.hourlyRate || 0}</td>}
+                  {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#fbbf24', fontSize: '0.875rem' }}>¥{(user?.dailyWage || 0).toLocaleString()}</td>}
                   {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#f87171', fontSize: '0.875rem' }}>¥{laborCost.toLocaleString()}</td>}
-                  <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.875rem' }}>{t.projectType || '-'}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'center' }}><StatusBadge status={t.status} /></td>
                   {canApprove && (
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>

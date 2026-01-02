@@ -1,13 +1,13 @@
-// v3.0 - 差旅报销模块
-// 更新：三级审批流程（项目负责人→部门秘书→部门负责人）、按项目-人-费用类型展示
+// v3.1 - 差旅报销模块
+// 更新：三级审批流程（员工确认→执行负责人→部门负责人）、使用projectShortName
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import type { ExpenseEntry, ExpenseCategory } from '../types';
 
-const categories: ExpenseCategory[] = ['住宿', '飞机', '高铁', '出租', '餐费', '其他'];
+const categories: ExpenseCategory[] = ['高铁', '飞机', '打车', '公交', '餐费', '住宿', '其他'];
 const categoryIcons: Record<string, string> = {
-  '住宿': '🏨', '飞机': '✈️', '高铁': '🚄', '出租': '🚕', '餐费': '🍽️', '其他': '📦'
+  '高铁': '🚄', '飞机': '✈️', '打车': '🚕', '公交': '🚌', '餐费': '🍽️', '住宿': '🏨', '其他': '📦'
 };
 
 const inputStyle: React.CSSProperties = {
@@ -18,6 +18,18 @@ const inputStyle: React.CSSProperties = {
   background: 'rgba(15, 23, 42, 0.5)',
   color: '#f8fafc',
   fontSize: '0.8125rem',
+};
+
+const thStyle: React.CSSProperties = {
+  padding: '0.75rem 0.5rem',
+  textAlign: 'left',
+  color: '#94a3b8',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  position: 'sticky',
+  top: 0,
+  background: 'rgba(30, 41, 59, 0.95)',
+  zIndex: 10,
 };
 
 export function ExpensePanel() {
@@ -51,7 +63,7 @@ export function ExpensePanel() {
   const groupedExpenses = useMemo(() => {
     const grouped: Record<string, Record<string, Record<string, ExpenseEntry[]>>> = {};
     visibleExpenses.forEach(e => {
-      const projectName = projects.find(p => p.id === e.projectId)?.projectName || '未知项目';
+      const projectName = projects.find(p => p.id === e.projectId)?.projectShortName || '未知项目';
       const userName = users.find(u => u.id === e.userId)?.name || '未知';
       if (!grouped[projectName]) grouped[projectName] = {};
       if (!grouped[projectName][userName]) grouped[projectName][userName] = {};
@@ -75,22 +87,25 @@ export function ExpensePanel() {
     setForm({ projectId: '', date: '', category: '' as ExpenseCategory, amount: '', description: '' });
   };
 
-  // 审批逻辑：根据当前状态和角色决定下一步
+  // 审批逻辑：员工确认 → 执行负责人审核 → 部门负责人审核
   const handleApprove = (exp: ExpenseEntry) => {
-    if (exp.status === 'pending' && isProjectManager) {
-      updateExpenseStatus(exp.id, 'pm_approved');
-    } else if (exp.status === 'pm_approved' && isSecretary) {
-      updateExpenseStatus(exp.id, 'secretary_approved');
-    } else if (exp.status === 'secretary_approved' && isDepartmentHead) {
+    if (exp.status === 'pending' && exp.userId === currentUser?.id) {
+      updateExpenseStatus(exp.id, 'user_confirmed');
+    } else if (exp.status === 'user_confirmed' && isProjectManager) {
+      updateExpenseStatus(exp.id, 'executor_approved');
+    } else if (exp.status === 'executor_approved' && isDepartmentHead) {
+      updateExpenseStatus(exp.id, 'approved');
+    } else if (isDepartmentHead) {
+      // 部门负责人可以直接批准任何状态
       updateExpenseStatus(exp.id, 'approved');
     }
   };
 
   const canApproveThis = (exp: ExpenseEntry) => {
-    if (exp.status === 'pending' && isProjectManager) return true;
-    if (exp.status === 'pm_approved' && isSecretary) return true;
-    if (exp.status === 'secretary_approved' && isDepartmentHead) return true;
-    if (isDepartmentHead && (exp.status === 'pending' || exp.status === 'pm_approved' || exp.status === 'secretary_approved')) return true;
+    if (exp.status === 'pending' && exp.userId === currentUser?.id) return true;
+    if (exp.status === 'user_confirmed' && isProjectManager) return true;
+    if (exp.status === 'executor_approved' && isDepartmentHead) return true;
+    if (isDepartmentHead && exp.status !== 'approved' && exp.status !== 'rejected') return true;
     return false;
   };
 
@@ -99,9 +114,9 @@ export function ExpensePanel() {
 
   const StatusBadge = ({ status }: { status: ExpenseEntry['status'] }) => {
     const styles: Record<string, { bg: string; color: string; label: string }> = {
-      pending: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', label: '待项目负责人审批' },
-      pm_approved: { bg: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', label: '待秘书审批' },
-      secretary_approved: { bg: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', label: '待部门负责人审批' },
+      pending: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', label: '待员工确认' },
+      user_confirmed: { bg: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', label: '待执行负责人审批' },
+      executor_approved: { bg: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', label: '待部门负责人审批' },
       approved: { bg: 'rgba(16, 185, 129, 0.15)', color: '#34d399', label: '✓ 已批准' },
       rejected: { bg: 'rgba(239, 68, 68, 0.15)', color: '#f87171', label: '✗ 已拒绝' },
     };
@@ -119,7 +134,7 @@ export function ExpensePanel() {
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f8fafc' }}>✈️ 差旅报销</h2>
           <p style={{ color: '#64748b', fontSize: '0.875rem' }}>
-            {canApprove ? '三级审批：项目负责人 → 部门秘书 → 部门负责人' : '提交差旅费用报销申请'}
+            {canApprove ? '三级审批：员工确认 → 执行负责人 → 部门负责人' : '提交差旅费用报销申请'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -150,7 +165,7 @@ export function ExpensePanel() {
               <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>项目</label>
               <select style={inputStyle} value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} required>
                 <option value="">选择</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.projectName}</option>)}
+                {projects.map(p => <option key={p.id} value={p.id}>{p.projectShortName}</option>)}
               </select>
             </div>
             <div>
@@ -189,18 +204,19 @@ export function ExpensePanel() {
           borderRadius: '12px',
           border: '1px solid rgba(148, 163, 184, 0.1)',
           overflow: 'auto',
+          maxHeight: '70vh',
         }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>报销日期</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>员工</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>项目</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>类型</th>
-                <th style={{ padding: '0.75rem', textAlign: 'right', color: '#94a3b8', fontSize: '0.75rem' }}>金额</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>说明</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>状态</th>
-                {canApprove && <th style={{ padding: '0.75rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>操作</th>}
+              <tr>
+                <th style={thStyle}>报销日期</th>
+                <th style={thStyle}>员工</th>
+                <th style={thStyle}>项目</th>
+                <th style={thStyle}>类型</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>金额</th>
+                <th style={thStyle}>说明</th>
+                <th style={{ ...thStyle, textAlign: 'center' }}>状态</th>
+                {canApprove && <th style={{ ...thStyle, textAlign: 'center' }}>操作</th>}
               </tr>
             </thead>
             <tbody>
@@ -208,7 +224,7 @@ export function ExpensePanel() {
                 <tr key={exp.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
                   <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{exp.date}</td>
                   <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{getUser(exp.userId)?.name}</td>
-                  <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{getProject(exp.projectId)?.projectName}</td>
+                  <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{getProject(exp.projectId)?.projectShortName}</td>
                   <td style={{ padding: '0.75rem' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', background: 'rgba(124, 58, 237, 0.15)', borderRadius: '6px', fontSize: '0.75rem' }}>
                       {categoryIcons[exp.category]} {exp.category}

@@ -1,8 +1,11 @@
-// v3.0 - 快速登录模块
-// 更新：支持5种角色（员工、实习生、项目负责人、部门秘书、部门负责人）
+// v3.1 - 快速登录模块（测试模式）
+// 更新：隐藏费率和性别、秘书放最后、按级别排序、添加切换正式登录按钮
 import { useAuth } from '../context/AuthContext';
-import { users } from '../data/mockData';
 import type { Role } from '../types';
+
+interface QuickLoginProps {
+  onSwitchToLogin: () => void;
+}
 
 const roleLabels: Record<Role, { label: string; icon: string; color: string; bg: string }> = {
   employee: { label: '员工', icon: '👤', color: '#34d399', bg: 'rgba(6, 214, 160, 0.15)' },
@@ -20,16 +23,17 @@ const roleGradients: Record<Role, string> = {
   department_head: 'linear-gradient(135deg, #7c3aed, #a855f7)',
 };
 
-export function QuickLogin() {
-  const { login } = useAuth();
+export function QuickLogin({ onSwitchToLogin }: QuickLoginProps) {
+  const { login, users } = useAuth();
 
-  // 按角色分组
+  // 按角色分组，秘书放最后，每组按级别排序
+  const sortByLevel = (a: typeof users[0], b: typeof users[0]) => b.level - a.level;
   const groupedUsers = {
-    department_head: users.filter(u => u.role === 'department_head'),
-    project_manager: users.filter(u => u.role === 'project_manager'),
-    secretary: users.filter(u => u.role === 'secretary'),
-    employee: users.filter(u => u.role === 'employee'),
-    intern: users.filter(u => u.role === 'intern'),
+    department_head: users.filter(u => u.role === 'department_head').sort(sortByLevel),
+    project_manager: users.filter(u => u.role === 'project_manager').sort(sortByLevel),
+    employee: users.filter(u => u.role === 'employee').sort(sortByLevel),
+    intern: users.filter(u => u.role === 'intern').sort(sortByLevel),
+    secretary: users.filter(u => u.role === 'secretary').sort(sortByLevel),
   };
 
   return (
@@ -59,13 +63,10 @@ export function QuickLogin() {
         }}>
           咨询部-项目管理系统
         </h1>
-        <p style={{ fontSize: '1rem', color: '#64748b', marginTop: '0.5rem' }}>
-          工时、报销、毛利分析
-        </p>
       </div>
 
       <p style={{ fontSize: '0.9375rem', color: '#94a3b8', marginBottom: '1.5rem' }}>
-        选择角色快速登录
+        测试模式 · 选择角色快速登录
       </p>
 
       {/* User cards by role */}
@@ -128,7 +129,7 @@ export function QuickLogin() {
                       {user.name}
                     </h3>
                     <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>
-                      {user.gender === 'male' ? '男' : '女'} · ¥{user.hourlyRate}/h
+                      级别 {user.level}
                     </p>
                   </button>
                 ))}
@@ -139,8 +140,19 @@ export function QuickLogin() {
       </div>
 
       <p style={{ fontSize: '0.8125rem', color: '#475569', marginTop: '2rem' }}>
-        Demo模式 · 点击任意角色即可体验系统功能
+        测试模式 · 点击任意角色即可体验系统功能
       </p>
+      <button
+        onClick={onSwitchToLogin}
+        style={{
+          marginTop: '1rem', padding: '0.5rem 1rem',
+          background: 'none', border: '1px solid rgba(148, 163, 184, 0.3)',
+          borderRadius: '8px', color: '#94a3b8', fontSize: '0.875rem',
+          cursor: 'pointer',
+        }}
+      >
+        切换正式登录
+      </button>
     </div>
   );
 }
