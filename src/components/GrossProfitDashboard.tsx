@@ -1,5 +1,5 @@
-// v3.3 - 项目毛利分析模块
-// 更新：添加部门负责人权限控制
+// v3.4 - 项目毛利分析模块
+// 更新：明确差旅费数据来源为差旅报销表（按项目简称分组汇总已审核记录）
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -41,7 +41,7 @@ export function GrossProfitDashboard() {
         return sum + (t.totalHours * (user?.dailyWage || 0)) / 8;
       }, 0);
 
-      // 筛选已审核的差旅费
+      // 差旅费：从差旅报销表汇总该项目所有已审核记录
       const approvedExpenses = expenses.filter(e =>
         e.projectId === project.id &&
         e.status === 'approved' &&
@@ -128,7 +128,7 @@ export function GrossProfitDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f8fafc' }}>📊 项目毛利分析</h2>
-          <p style={{ color: '#64748b', fontSize: '0.875rem' }}>人工成本 = 累计工时 × 日工资 ÷ 8</p>
+          <p style={{ color: '#64748b', fontSize: '0.875rem' }}>人工成本 = 累计工时 × 日工资 ÷ 8 | 差旅费来源：差旅报销表</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <input

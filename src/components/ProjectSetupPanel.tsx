@@ -1,10 +1,8 @@
-// v3.3 - 项目建项模块
-// 更新：合同金额输入框支持千分位显示
+// v3.4 - 项目建项模块
+// 更新：合同金额可编辑、确认收款可删除、负责人下拉菜单包含更多角色、删除状态列、完成日期可手动输入
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import type { ProjectStatus } from '../types';
-import { PROJECT_STATUS_LABELS } from '../types';
 
 const cardStyle: React.CSSProperties = {
   background: 'rgba(30, 41, 59, 0.5)',
@@ -51,15 +49,6 @@ const tdStyle: React.CSSProperties = {
 // 千分位格式化
 const formatNumber = (num: number) => num.toLocaleString('zh-CN');
 
-// 项目状态颜色
-const statusColors: Record<ProjectStatus, string> = {
-  0: '#64748b', // 未开始
-  1: '#3b82f6', // 进行中
-  2: '#06d6a0', // 项目完成
-  3: '#fbbf24', // 开完发票
-  4: '#a855f7', // 已收款
-};
-
 export function ProjectSetupPanel() {
   const { canCreateProject, isDepartmentHead, isProjectManager, currentUser } = useAuth();
   const { projects, users, addProject, updateProject, deleteProject } = useData();
@@ -82,8 +71,11 @@ export function ProjectSetupPanel() {
     ? projects.filter(p => p.developmentLeaderId === currentUser?.id || p.executionLeaderId === currentUser?.id)
     : projects;
 
-  // 可选为负责人的用户（项目负责人和部门负责人）
-  const leaderCandidates = users.filter(u => u.role === 'project_manager' || u.role === 'department_head');
+  // 开发负责人候选：项目负责人和部门负责人
+  const devLeaderCandidates = users.filter(u => u.role === 'project_manager' || u.role === 'department_head');
+
+  // 执行负责人候选：项目负责人、部门负责人、员工、实习生
+  const execLeaderCandidates = users.filter(u => ['project_manager', 'department_head', 'employee', 'intern'].includes(u.role));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +145,7 @@ export function ProjectSetupPanel() {
               <label style={labelStyle}>开发负责人</label>
               <select style={{ ...inputStyle, width: '100%' }} value={form.developmentLeaderId} onChange={e => setForm({ ...form, developmentLeaderId: e.target.value })} required>
                 <option value="">选择</option>
-                {leaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                {devLeaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 <option value="custom">自定义...</option>
               </select>
               {form.developmentLeaderId === 'custom' && (
@@ -164,7 +156,7 @@ export function ProjectSetupPanel() {
               <label style={labelStyle}>执行负责人</label>
               <select style={{ ...inputStyle, width: '100%' }} value={form.executionLeaderId} onChange={e => setForm({ ...form, executionLeaderId: e.target.value })} required>
                 <option value="">选择</option>
-                {leaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                {execLeaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 <option value="custom">自定义...</option>
               </select>
               {form.executionLeaderId === 'custom' && (
@@ -192,7 +184,6 @@ export function ProjectSetupPanel() {
               {isDepartmentHead && <th style={{ ...thStyle, textAlign: 'right' }}>确认收款</th>}
               <th style={thStyle}>开发负责人</th>
               <th style={thStyle}>执行负责人</th>
-              <th style={thStyle}>状态</th>
               <th style={thStyle}>完成日期</th>
               <th style={thStyle}>操作</th>
             </tr>
@@ -221,9 +212,35 @@ export function ProjectSetupPanel() {
                     onChange={e => updateProject(p.id, { payer: e.target.value })}
                   />
                 </td>
-                <td style={{ ...tdStyle, textAlign: 'right', color: '#06d6a0' }}>¥{formatNumber(p.contractAmount)}</td>
+                <td style={{ ...tdStyle, textAlign: 'right', color: '#06d6a0' }}>
+                  <input
+                    style={{ ...inputStyle, width: '120px', textAlign: 'right', color: '#06d6a0' }}
+                    type="text"
+                    value={formatNumber(p.contractAmount)}
+                    onChange={e => {
+                      const val = e.target.value.replace(/,/g, '');
+                      updateProject(p.id, { contractAmount: Number(val) || 0 });
+                    }}
+                  />
+                </td>
                 {isDepartmentHead && (
-                  <td style={{ ...tdStyle, textAlign: 'right', color: '#fbbf24' }}>¥{formatNumber(p.confirmedReceipt)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                      <span style={{ color: '#fbbf24' }}>¥{formatNumber(p.confirmedReceipt)}</span>
+                      {p.confirmedReceipt > 0 && (
+                        <button
+                          onClick={() => updateProject(p.id, { confirmedReceipt: 0 })}
+                          style={{
+                            padding: '0.25rem 0.5rem', borderRadius: '4px', border: 'none',
+                            background: 'rgba(239, 68, 68, 0.2)', color: '#f87171',
+                            fontSize: '0.75rem', cursor: 'pointer',
+                          }}
+                        >
+                          删除
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 )}
                 <td style={tdStyle}>
                   <select
@@ -232,7 +249,7 @@ export function ProjectSetupPanel() {
                     onChange={e => updateProject(p.id, { developmentLeaderId: e.target.value })}
                   >
                     <option value="">选择</option>
-                    {leaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    {devLeaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                     <option value="custom">{p.developmentLeaderId === 'custom' ? p.developmentLeaderName : '自定义...'}</option>
                   </select>
                 </td>
@@ -243,19 +260,8 @@ export function ProjectSetupPanel() {
                     onChange={e => updateProject(p.id, { executionLeaderId: e.target.value })}
                   >
                     <option value="">选择</option>
-                    {leaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    {execLeaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                     <option value="custom">{p.executionLeaderId === 'custom' ? p.executionLeaderName : '自定义...'}</option>
-                  </select>
-                </td>
-                <td style={tdStyle}>
-                  <select
-                    style={{ ...inputStyle, width: '90px', color: statusColors[p.status] }}
-                    value={p.status}
-                    onChange={e => updateProject(p.id, { status: Number(e.target.value) as ProjectStatus })}
-                  >
-                    {([0, 1, 2, 3, 4] as ProjectStatus[]).map(s => (
-                      <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>
-                    ))}
                   </select>
                 </td>
                 <td style={tdStyle}>

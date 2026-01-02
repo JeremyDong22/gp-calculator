@@ -47,7 +47,7 @@ function MainApp() {
   const tabs = [
     { id: 'project' as Tab, label: '项目建项', icon: '📁', show: canManage },
     { id: 'staff' as Tab, label: '人员建项', icon: '👥', show: isDepartmentHead },
-    { id: 'assignment' as Tab, label: '人员安排', icon: '📅', show: canManage },
+    { id: 'assignment' as Tab, label: '人员安排', icon: '📅', show: true },
     { id: 'timesheet' as Tab, label: '工时填报', icon: '⏱️', show: true },
     { id: 'expense' as Tab, label: '差旅报销', icon: '✈️', show: true },
     { id: 'summary' as Tab, label: '工时汇总', icon: '📋', show: canManage },

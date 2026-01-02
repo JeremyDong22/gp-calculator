@@ -1,7 +1,9 @@
-// v3.3 - 项目控制表组件（按Excel模板重构）
-// 功能：项目信息、合同信息、差旅成本分类汇总，数据从其他表映射
+// v3.4 - 项目控制表组件（按执行负责人分表，权限控制）
+// 功能：执行负责人只能看到和编辑自己的项目，部门负责人可以看到所有项目
+// 更新：开票改为checkbox，项目名称改为项目简称，联系人可编辑，交通费和其他从差旅报销推送
 import { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { PROJECT_STATUS_LABELS, PROJECT_TYPE_OPTIONS, REPORT_STATUS_OPTIONS } from '../types';
 import type { ProjectControlEntry, ProjectType, ReportStatus, ExpenseCategory } from '../types';
 
@@ -68,26 +70,38 @@ const TRANSPORT_CATEGORIES: ExpenseCategory[] = ['高铁', '飞机', '打车', '
 
 export function ProjectControlPanel() {
   const { projects, users, projectControls, expenses, cashReceipts, updateProjectControl, getOrCreateProjectControl } = useData();
+  const { currentUser, isDepartmentHead } = useAuth();
 
-  // 获取所有执行负责人
+  // 获取所有执行负责人（部门负责人可见所有，执行负责人只能看到自己）
   const executors = useMemo(() => {
     const executorIds = [...new Set(projects.map(p => p.executionLeaderId))];
-    return executorIds.map(id => {
+    const allExecutors = executorIds.map(id => {
       const user = users.find(u => u.id === id);
       return { id, name: user?.name || id };
     });
-  }, [projects, users]);
 
-  const [selectedExecutorId, setSelectedExecutorId] = useState<string>(executors[0]?.id || '');
+    // 如果不是部门负责人，只返回当前用户
+    if (!isDepartmentHead && currentUser) {
+      return allExecutors.filter(e => e.id === currentUser.id);
+    }
+    return allExecutors;
+  }, [projects, users, isDepartmentHead, currentUser]);
+
+  const [selectedExecutorId, setSelectedExecutorId] = useState<string>(
+    isDepartmentHead ? executors[0]?.id || '' : currentUser?.id || ''
+  );
 
   // 获取当前执行负责人的项目
   const executorProjects = useMemo(() => {
     return projects.filter(p => p.executionLeaderId === selectedExecutorId);
   }, [projects, selectedExecutorId]);
 
-  // 获取项目差旅费用分类汇总
-  const getProjectExpenseBreakdown = (projectId: string) => {
-    const projectExpenses = expenses.filter(e => e.projectId === projectId && e.status === 'approved');
+  // 获取项目差旅费用分类汇总（按项目简称匹配）
+  const getProjectExpenseBreakdown = (projectShortName: string) => {
+    const projectExpenses = expenses.filter(e => {
+      const project = projects.find(p => p.id === e.projectId);
+      return project?.projectShortName === projectShortName && e.status === 'approved';
+    });
     const transport = projectExpenses.filter(e => TRANSPORT_CATEGORIES.includes(e.category)).reduce((s, e) => s + e.amount, 0);
     const accommodation = projectExpenses.filter(e => e.category === '住宿').reduce((s, e) => s + e.amount, 0);
     const meals = projectExpenses.filter(e => e.category === '餐费').reduce((s, e) => s + e.amount, 0);
@@ -120,17 +134,17 @@ export function ProjectControlPanel() {
   // 导出Excel
   const handleExport = () => {
     const executorName = executors.find(e => e.id === selectedExecutorId)?.name || '';
-    const headers = ['序号', '项目名称(全称)', '委托方(全称)', '完成时间', '联系人', '项目类型', '项目状态', '合同发出', '盖章收回', '报告状态', '已开票', '合同金额', '回款金额', '坏账', '欠款金额', '交通费', '住宿', '餐饮', '其他', '差旅合计', '占收入%', '备注'];
+    const headers = ['序号', '项目简称', '委托方(全称)', '完成时间', '联系人', '项目类型', '项目状态', '合同发出', '盖章收回', '报告状态', '已开票', '合同金额', '回款金额', '坏账', '欠款金额', '交通费', '住宿', '餐饮', '其他', '差旅合计', '占收入%', '备注'];
 
     const rows = executorProjects.map((p, idx) => {
       const control = getControlEntry(p.id);
       const receipt = getProjectReceipt(p.id);
-      const expense = getProjectExpenseBreakdown(p.id);
+      const expense = getProjectExpenseBreakdown(p.projectShortName);
       const debt = p.contractAmount - receipt.confirmedReceipt - control.badDebt;
       const expenseRate = p.contractAmount > 0 ? (expense.total / p.contractAmount * 100).toFixed(1) + '%' : '-';
 
       return [
-        idx + 1, p.clientFullName, p.payer, p.completionDate || '', control.clientContact, control.projectType,
+        idx + 1, p.projectShortName, p.payer, p.completionDate || '', control.clientContact, control.projectType,
         PROJECT_STATUS_LABELS[p.status], control.contractSent ? 'Y' : 'N', control.contractReceived ? 'Y' : 'N',
         control.reportStatus, receipt.hasInvoice ? 'Y' : 'N', p.contractAmount, receipt.confirmedReceipt,
         control.badDebt, debt, expense.transport, expense.accommodation, expense.meals, expense.other,
@@ -151,7 +165,7 @@ export function ProjectControlPanel() {
     return executorProjects.reduce((acc, p) => {
       const control = getControlEntry(p.id);
       const receipt = getProjectReceipt(p.id);
-      const expense = getProjectExpenseBreakdown(p.id);
+      const expense = getProjectExpenseBreakdown(p.projectShortName);
       const debt = p.contractAmount - receipt.confirmedReceipt - control.badDebt;
       return {
         contractAmount: acc.contractAmount + p.contractAmount,
@@ -228,7 +242,7 @@ export function ProjectControlPanel() {
             {/* 字段标题行 */}
             <tr>
               {/* 项目信息 */}
-              <th style={{ ...thStyle, minWidth: '180px' }}>项目名称(全称)</th>
+              <th style={{ ...thStyle, minWidth: '120px' }}>项目简称</th>
               <th style={{ ...thStyle, minWidth: '120px' }}>委托方(全称)</th>
               <th style={{ ...thStyle, width: '90px' }}>完成时间</th>
               <th style={{ ...thStyle, width: '80px' }}>联系人</th>
@@ -257,7 +271,7 @@ export function ProjectControlPanel() {
             {executorProjects.map((p, idx) => {
               const control = getControlEntry(p.id);
               const receipt = getProjectReceipt(p.id);
-              const expense = getProjectExpenseBreakdown(p.id);
+              const expense = getProjectExpenseBreakdown(p.projectShortName);
               const debt = p.contractAmount - receipt.confirmedReceipt - control.badDebt;
               const expenseRate = p.contractAmount > 0 ? (expense.total / p.contractAmount * 100).toFixed(1) : '-';
 
@@ -265,7 +279,7 @@ export function ProjectControlPanel() {
                 <tr key={p.id} style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(15, 23, 42, 0.3)' }}>
                   <td style={{ ...tdStyle, textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
                   {/* 项目信息 - 从Project表映射 */}
-                  <td style={{ ...tdStyle, color: '#f8fafc' }}>{p.clientFullName}</td>
+                  <td style={{ ...tdStyle, color: '#f8fafc' }}>{p.projectShortName}</td>
                   <td style={{ ...tdStyle, color: '#94a3b8' }}>{p.payer}</td>
                   <td style={{ ...tdStyle, color: '#94a3b8' }}>{p.completionDate || '-'}</td>
                   <td style={tdStyle}>
@@ -291,8 +305,8 @@ export function ProjectControlPanel() {
                       {REPORT_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </td>
-                  <td style={{ ...tdStyle, textAlign: 'center', color: receipt.hasInvoice ? '#06d6a0' : '#64748b' }}>
-                    {receipt.hasInvoice ? 'Y' : 'N'}
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                    <input type="checkbox" style={checkboxStyle} checked={receipt.hasInvoice} disabled />
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', color: '#f8fafc' }}>{p.contractAmount.toLocaleString()}</td>
                   <td style={{ ...tdStyle, textAlign: 'right', color: '#06d6a0' }}>{receipt.confirmedReceipt.toLocaleString()}</td>

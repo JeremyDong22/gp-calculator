@@ -1,5 +1,5 @@
-// v3.1 - 咨询部项目管理系统数据模型
-// 更新：新增项目控制表类型 ProjectControlEntry
+// v3.3 - 咨询部项目管理系统数据模型
+// 更新：差旅报销审核流程改为四级（报销人→执行负责人→秘书→部门负责人）
 
 // 角色类型：员工、实习生、项目负责人、部门秘书、部门负责人
 export type Role = 'employee' | 'intern' | 'project_manager' | 'secretary' | 'department_head';
@@ -7,8 +7,8 @@ export type Role = 'employee' | 'intern' | 'project_manager' | 'secretary' | 'de
 // 性别
 export type Gender = 'male' | 'female';
 
-// 级别：1-30的数字
-export type Level = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30;
+// 级别（认定年限）：0-20的数字
+export type Level = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
 
 // 项目状态：0未开始 → 1进行中 → 2项目完成 → 3开完发票 → 4已收款
 export type ProjectStatus = 0 | 1 | 2 | 3 | 4;
@@ -82,14 +82,14 @@ export type ExpenseEntry = {
   projectId: string;           // 项目排在报销人左边
   userId: string;              // 报销人
   date: string;                // 报销日期
-  location?: string;           // 地点
+  location?: string;           // 地点（保留字段但不显示）
   category: ExpenseCategory;
   amount: number;
   description: string;
-  status: 'pending' | 'user_confirmed' | 'executor_approved' | 'approved' | 'rejected';
-  // 三级审批：员工确认 → 执行负责人审核 → 部门负责人审核
-  userConfirmation?: { confirmed: boolean; date: string; };
+  status: 'pending' | 'executor_approved' | 'secretary_approved' | 'approved' | 'rejected';
+  // 四级审批：报销人提交 → 执行负责人审核 → 秘书审核 → 部门负责人审核
   executorApproval?: { approved: boolean; date: string; approverId: string; comment: string; };
+  secretaryApproval?: { approved: boolean; date: string; approverId: string; comment: string; };
   headApproval?: { approved: boolean; date: string; approverId: string; comment: string; };
 };
 

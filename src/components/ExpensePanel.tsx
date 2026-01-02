@@ -1,5 +1,5 @@
-// v4.2 - 差旅报销模块
-// 更新：地点字段从人员安排自动填充
+// v5.0 - 差旅报销模块
+// 更新：审核流程改为报销人→执行负责人→秘书→部门负责人；删除地点列；报销人在执行负责人确认前可修改删除
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -38,7 +38,7 @@ interface ExpensePanelProps {
 
 export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
   const { currentUser, isDepartmentHead, isProjectManager, isSecretary, isExecutionLeaderOf } = useAuth();
-  const { expenses, projects, users, assignments, addExpense, updateExpense, deleteExpense, updateExpenseStatus } = useData();
+  const { expenses, projects, users, assignments, addExpense, updateExpense, deleteExpense, approveExpenseByExecutor, approveExpenseBySecretary, approveExpenseByHead, rejectExpense } = useData();
   const [form, setForm] = useState({
     projectId: '',
     date: '',
@@ -52,7 +52,7 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const canInput = isSecretary || isDepartmentHead;
+  const canInput = currentUser !== null;
   const canApprove = isDepartmentHead || isProjectManager || isSecretary;
 
   // 可见费用记录
@@ -152,28 +152,36 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
   };
 
   const canModify = (exp: ExpenseEntry) => {
-    if (exp.status === 'approved') return isDepartmentHead;
-    return exp.userId === currentUser?.id;
+    // 报销人在执行负责人确认前可以修改删除
+    if (exp.userId === currentUser?.id && exp.status === 'pending') return true;
+    // 部门负责人可以修改已批准的记录
+    if (exp.status === 'approved' && isDepartmentHead) return true;
+    return false;
   };
 
-  // 审批逻辑：员工确认 → 执行负责人审核 → 部门负责人审核
+  // 审批逻辑：报销人提交 → 执行负责人审核 → 秘书审核 → 部门负责人审核
   const handleApprove = (exp: ExpenseEntry) => {
-    if (exp.status === 'pending' && exp.userId === currentUser?.id) {
-      updateExpenseStatus(exp.id, 'user_confirmed');
-    } else if (exp.status === 'user_confirmed' && isProjectManager) {
-      updateExpenseStatus(exp.id, 'executor_approved');
-    } else if (exp.status === 'executor_approved' && isDepartmentHead) {
-      updateExpenseStatus(exp.id, 'approved');
-    } else if (isDepartmentHead) {
-      updateExpenseStatus(exp.id, 'approved');
+    if (!currentUser) return;
+    if (exp.status === 'pending' && isExecutionLeaderOf(exp.projectId, projects)) {
+      approveExpenseByExecutor(exp.id, currentUser.id, '');
+    } else if (exp.status === 'executor_approved' && isSecretary) {
+      approveExpenseBySecretary(exp.id, currentUser.id, '');
+    } else if (exp.status === 'secretary_approved' && isDepartmentHead) {
+      approveExpenseByHead(exp.id, currentUser.id, '');
+    }
+  };
+
+  const handleReject = (exp: ExpenseEntry) => {
+    if (!currentUser) return;
+    if (confirm('确定拒绝此报销记录？')) {
+      rejectExpense(exp.id, currentUser.id, '');
     }
   };
 
   const canApproveThis = (exp: ExpenseEntry) => {
-    if (exp.status === 'pending' && exp.userId === currentUser?.id) return true;
-    if (exp.status === 'user_confirmed' && isProjectManager && isExecutionLeaderOf(exp.projectId, projects)) return true;
-    if (exp.status === 'executor_approved' && isDepartmentHead) return true;
-    if (isDepartmentHead && exp.status !== 'approved' && exp.status !== 'rejected') return true;
+    if (exp.status === 'pending' && isExecutionLeaderOf(exp.projectId, projects)) return true;
+    if (exp.status === 'executor_approved' && isSecretary) return true;
+    if (exp.status === 'secretary_approved' && isDepartmentHead) return true;
     return false;
   };
 
@@ -182,9 +190,9 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
 
   const StatusBadge = ({ status }: { status: ExpenseEntry['status'] }) => {
     const styles: Record<string, { bg: string; color: string; label: string }> = {
-      pending: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', label: '待员工确认' },
-      user_confirmed: { bg: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', label: '待执行负责人审批' },
-      executor_approved: { bg: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', label: '待部门负责人审批' },
+      pending: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', label: '待执行负责人审批' },
+      executor_approved: { bg: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', label: '待秘书审批' },
+      secretary_approved: { bg: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', label: '待部门负责人审批' },
       approved: { bg: 'rgba(16, 185, 129, 0.15)', color: '#34d399', label: '✓ 已批准' },
       rejected: { bg: 'rgba(239, 68, 68, 0.15)', color: '#f87171', label: '✗ 已拒绝' },
     };
@@ -204,7 +212,7 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f8fafc' }}>✈️ 差旅报销</h2>
           <p style={{ color: '#64748b', fontSize: '0.875rem' }}>
-            {canApprove ? '三级审批：员工确认 → 执行负责人 → 部门负责人' : '查看差旅费用报销记录'}
+            {canApprove ? '四级审批：报销人 → 执行负责人 → 秘书 → 部门负责人' : '查看差旅费用报销记录'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -283,10 +291,6 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
               <input type="date" style={inputStyle} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>地点</label>
-              <input type="text" style={inputStyle} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="工作地点" />
-            </div>
-            <div>
               <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>费用类型</label>
               <select style={inputStyle} value={form.category} onChange={e => setForm({ ...form, category: e.target.value as ExpenseCategory })} required>
                 <option value="">选择</option>
@@ -335,7 +339,6 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
               <tr>
                 <th style={thStyle}>报销日期</th>
                 <th style={thStyle}>项目</th>
-                <th style={thStyle}>地点</th>
                 <th style={thStyle}>报销人</th>
                 <th style={thStyle}>类型</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>金额</th>
@@ -367,19 +370,6 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
                         项目总计: ¥{projectTotal.toLocaleString()} ({getExpenseRatio(exp.projectId, projectTotal)}%)
                       </div>
                     </td>
-                    <td style={{ padding: '0.75rem', fontSize: '0.875rem' }}>
-                      {canModify(exp) ? (
-                        <input
-                          type="text"
-                          value={exp.location || ''}
-                          onChange={e => updateExpense(exp.id, { location: e.target.value })}
-                          style={{ ...inputStyle, fontSize: '0.875rem', padding: '0.25rem' }}
-                          placeholder="地点"
-                        />
-                      ) : (
-                        <span style={{ color: '#94a3b8' }}>{exp.location || '-'}</span>
-                      )}
-                    </td>
                     <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{getUser(exp.userId)?.name}</td>
                     <td style={{ padding: '0.75rem' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', background: 'rgba(124, 58, 237, 0.15)', borderRadius: '6px', fontSize: '0.75rem' }}>
@@ -401,7 +391,7 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
                                 background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)',
                                 color: '#34d399', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
                               }}>批准</button>
-                              <button onClick={() => updateExpenseStatus(exp.id, 'rejected')} style={{
+                              <button onClick={() => handleReject(exp)} style={{
                                 background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
                                 color: '#f87171', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
                               }}>拒绝</button>

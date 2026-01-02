@@ -1,5 +1,5 @@
-// v3.1 - 人员建项模块
-// 更新：级别显示改为"X级(X年)"格式，关联工作年限
+// v3.2 - 人员建项模块
+// 更新：删除性别列，"级别(年限)"改为"认定年限"(0-20年)，"重置"改为"重置密码"，表头居中对齐
 import { useState } from 'react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
@@ -35,7 +35,7 @@ const labelStyle: React.CSSProperties = {
 
 const thStyle: React.CSSProperties = {
   padding: '0.75rem 0.5rem',
-  textAlign: 'left',
+  textAlign: 'center',
   color: '#94a3b8',
   fontSize: '0.75rem',
   fontWeight: 600,
@@ -59,8 +59,8 @@ const roleLabels: Record<Role, string> = {
   department_head: '部门负责人',
 };
 
-// 生成级别选项 1-30
-const levelOptions: Level[] = Array.from({ length: 30 }, (_, i) => (i + 1) as Level);
+// 生成认定年限选项 0-20
+const levelOptions: Level[] = Array.from({ length: 21 }, (_, i) => i as Level);
 
 // 可排序行组件
 function SortableRow({ user, onUpdate, onDelete, onResetPassword }: {
@@ -100,17 +100,6 @@ function SortableRow({ user, onUpdate, onDelete, onResetPassword }: {
           onChange={e => onUpdate(user.id, { name: e.target.value })}
         />
       </td>
-      {/* 性别 */}
-      <td style={tdStyle}>
-        <select
-          style={{ ...cellInputStyle, width: '60px' }}
-          value={user.gender}
-          onChange={e => onUpdate(user.id, { gender: e.target.value as Gender })}
-        >
-          <option value="male">男</option>
-          <option value="female">女</option>
-        </select>
-      </td>
       {/* 角色 */}
       <td style={tdStyle}>
         <select
@@ -121,14 +110,14 @@ function SortableRow({ user, onUpdate, onDelete, onResetPassword }: {
           {Object.entries(roleLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </td>
-      {/* 级别 */}
+      {/* 认定年限 */}
       <td style={tdStyle}>
         <select
-          style={{ ...cellInputStyle, width: '60px' }}
+          style={{ ...cellInputStyle, width: '70px' }}
           value={user.level}
           onChange={e => onUpdate(user.id, { level: Number(e.target.value) as Level })}
         >
-          {levelOptions.map(l => <option key={l} value={l}>{l}级({l}年)</option>)}
+          {levelOptions.map(l => <option key={l} value={l}>{l}年</option>)}
         </select>
       </td>
       {/* 年薪包 */}
@@ -178,7 +167,7 @@ function SortableRow({ user, onUpdate, onDelete, onResetPassword }: {
             }}
             title="重置密码为123456"
           >
-            重置
+            重置密码
           </button>
           <button
             onClick={() => onDelete(user.id)}
@@ -204,7 +193,7 @@ export function StaffSetupPanel() {
     name: '',
     gender: 'male' as Gender,
     role: 'employee' as Role,
-    level: 10 as Level,
+    level: 0 as Level,
     annualSalary: 200000,
     dailyWage: 800,
     dailyRate: 4000,
@@ -232,7 +221,7 @@ export function StaffSetupPanel() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     addUser(form);
-    setForm({ name: '', gender: 'male', role: 'employee', level: 10, annualSalary: 200000, dailyWage: 800, dailyRate: 4000, remark: '' });
+    setForm({ name: '', gender: 'male', role: 'employee', level: 0, annualSalary: 200000, dailyWage: 800, dailyRate: 4000, remark: '' });
     setShowForm(false);
   };
 
@@ -272,22 +261,15 @@ export function StaffSetupPanel() {
               <input style={{ ...inputStyle, width: '100%' }} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
             </div>
             <div>
-              <label style={labelStyle}>性别</label>
-              <select style={{ ...inputStyle, width: '100%' }} value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value as Gender })}>
-                <option value="male">男</option>
-                <option value="female">女</option>
-              </select>
-            </div>
-            <div>
               <label style={labelStyle}>角色</label>
               <select style={{ ...inputStyle, width: '100%' }} value={form.role} onChange={e => setForm({ ...form, role: e.target.value as Role })}>
                 {Object.entries(roleLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
             <div>
-              <label style={labelStyle}>级别(年限)</label>
+              <label style={labelStyle}>认定年限</label>
               <select style={{ ...inputStyle, width: '100%' }} value={form.level} onChange={e => setForm({ ...form, level: Number(e.target.value) as Level })}>
-                {levelOptions.map(l => <option key={l} value={l}>{l}级({l}年)</option>)}
+                {levelOptions.map(l => <option key={l} value={l}>{l}年</option>)}
               </select>
             </div>
             <div>
@@ -324,12 +306,11 @@ export function StaffSetupPanel() {
                 <th style={{ ...thStyle, width: '40px' }}></th>
                 <th style={{ ...thStyle, width: '40px' }}>序号</th>
                 <th style={thStyle}>姓名</th>
-                <th style={thStyle}>性别</th>
                 <th style={thStyle}>角色</th>
-                <th style={thStyle}>级别(年限)</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>年薪包</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>工资(天)</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>费率(天)</th>
+                <th style={thStyle}>认定年限</th>
+                <th style={thStyle}>年薪包</th>
+                <th style={thStyle}>工资(天)</th>
+                <th style={thStyle}>费率(天)</th>
                 <th style={thStyle}>备注</th>
                 <th style={thStyle}>操作</th>
               </tr>

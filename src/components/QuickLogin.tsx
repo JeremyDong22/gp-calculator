@@ -1,5 +1,5 @@
-// v3.1 - 快速登录模块（测试模式）
-// 更新：隐藏费率和性别、秘书放最后、按级别排序、添加切换正式登录按钮
+// v3.2 - 快速登录模块（测试模式）
+// 更新：三字名一行显示、隐藏角色标签、隐藏费率和性别、秘书放最后
 import { useAuth } from '../context/AuthContext';
 import type { Role } from '../types';
 
@@ -77,62 +77,62 @@ export function QuickLogin({ onSwitchToLogin }: QuickLoginProps) {
           return (
             <div key={role} style={{ marginBottom: '1.5rem' }}>
               <div style={{
-                display: 'flex', alignItems: 'center', gap: '0.5rem',
-                marginBottom: '0.75rem', padding: '0.5rem 0.75rem',
-                background: roleInfo.bg, borderRadius: '8px', width: 'fit-content',
-              }}>
-                <span>{roleInfo.icon}</span>
-                <span style={{ color: roleInfo.color, fontSize: '0.875rem', fontWeight: 600 }}>{roleInfo.label}</span>
-              </div>
-              <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
                 gap: '0.75rem',
               }}>
-                {roleUsers.map((user, index) => (
-                  <button
-                    key={user.id}
-                    onClick={() => login(user.id)}
-                    style={{
-                      background: 'rgba(26, 34, 52, 0.7)',
-                      backdropFilter: 'blur(20px)',
-                      border: '1px solid rgba(148, 163, 184, 0.1)',
-                      borderRadius: '12px',
-                      padding: '1rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease',
-                      textAlign: 'left',
-                      animation: 'fadeInUp 0.5s ease forwards',
-                      animationDelay: `${0.1 + index * 0.05}s`,
-                      opacity: 0,
-                    }}
-                    onMouseOver={e => {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.borderColor = roleInfo.color;
-                      e.currentTarget.style.boxShadow = `0 10px 30px ${roleInfo.bg}`;
-                    }}
-                    onMouseOut={e => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.1)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <div style={{
-                      width: '40px', height: '40px', borderRadius: '10px',
-                      background: roleGradients[role],
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '1rem', fontWeight: 700, color: 'white', marginBottom: '0.75rem',
-                    }}>
-                      {user.name.charAt(0)}
-                    </div>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#f8fafc', margin: '0 0 0.25rem 0' }}>
-                      {user.name}
-                    </h3>
-                    <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>
-                      级别 {user.level}
-                    </p>
-                  </button>
-                ))}
+                {roleUsers.map((user, index) => {
+                  // 三字名一行显示
+                  const isThreeChar = user.name.length === 3;
+                  return (
+                    <button
+                      key={user.id}
+                      onClick={() => login(user.id)}
+                      style={{
+                        background: 'rgba(26, 34, 52, 0.7)',
+                        backdropFilter: 'blur(20px)',
+                        border: '1px solid rgba(148, 163, 184, 0.1)',
+                        borderRadius: '12px',
+                        padding: '1rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        textAlign: 'left',
+                        animation: 'fadeInUp 0.5s ease forwards',
+                        animationDelay: `${0.1 + index * 0.05}s`,
+                        opacity: 0,
+                      }}
+                      onMouseOver={e => {
+                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        e.currentTarget.style.borderColor = roleInfo.color;
+                        e.currentTarget.style.boxShadow = `0 10px 30px ${roleInfo.bg}`;
+                      }}
+                      onMouseOut={e => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.1)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <div style={{
+                        width: '40px', height: '40px', borderRadius: '10px',
+                        background: roleGradients[role],
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1rem', fontWeight: 700, color: 'white', marginBottom: '0.75rem',
+                      }}>
+                        {user.name.charAt(0)}
+                      </div>
+                      <h3 style={{
+                        fontSize: '1rem',
+                        fontWeight: 600,
+                        color: '#f8fafc',
+                        margin: 0,
+                        letterSpacing: isThreeChar ? '0.5em' : 'normal',
+                        textAlign: isThreeChar ? 'center' : 'left',
+                      }}>
+                        {user.name}
+                      </h3>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           );

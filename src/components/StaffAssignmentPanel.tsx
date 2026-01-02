@@ -1,5 +1,5 @@
-// v4.0 - 人员安排表模块
-// 更新：添加项目选择下拉框、使用执行负责人颜色、权限控制、执行负责人图例、固定表头
+// v5.0 - 人员安排表模块
+// 更新：项目地点标签显示、起始时间设置、Excel导出、所有人可查看权限
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -24,7 +24,7 @@ const defaultExecutorColors: Record<string, string> = {
 export function StaffAssignmentPanel() {
   const { users, projects, assignments, addAssignment, updateAssignment, deleteAssignment, executorColors } = useData();
   const { isDepartmentHead, isProjectManager } = useAuth();
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [startDate, setStartDate] = useState('');
   const [editingCell, setEditingCell] = useState<{ userId: string; date: string } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -35,17 +35,21 @@ export function StaffAssignmentPanel() {
   }, [users]);
 
   const weekDates = useMemo(() => {
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay() + 1 + weekOffset * 7);
+    const start = startDate ? new Date(startDate) : new Date();
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
       return d.toISOString().split('T')[0];
     });
-  }, [weekOffset]);
+  }, [startDate]);
 
   const dayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+  const getDayName = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const day = d.getDay();
+    return dayNames[day === 0 ? 6 : day - 1];
+  };
 
   const sortedProjects = useMemo(() => {
     return [...projects].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -125,23 +129,58 @@ export function StaffAssignmentPanel() {
     return Array.from(map.values());
   }, [projects, users, executorColors]);
 
+  const exportToExcel = () => {
+    let csv = '姓名,级别';
+    weekDates.forEach(date => {
+      csv += `,${getDayName(date)} ${date}`;
+    });
+    csv += '\n';
+
+    sortedUsers.forEach(user => {
+      csv += `${user.name},L${user.level}`;
+      weekDates.forEach(date => {
+        const assignment = getAssignment(user.id, date);
+        const text = assignment?.assignments.map(a =>
+          `${getProjectName(a.projectId, a.customProjectName)}(${a.location})`
+        ).join('; ') || '';
+        csv += `,"${text}"`;
+      });
+      csv += '\n';
+    });
+
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `人员安排_${weekDates[0]}_${weekDates[6]}.csv`;
+    link.click();
+  };
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '1rem' }}>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f8fafc' }}>📅 人员安排表</h2>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={() => setWeekOffset(w => w - 1)} style={{
-            padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.2)',
-            background: 'transparent', color: '#94a3b8', cursor: 'pointer'
-          }}>← 上周</button>
-          <button onClick={() => setWeekOffset(0)} style={{
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            style={{
+              padding: '0.5rem',
+              borderRadius: '8px',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
+              background: '#334155',
+              color: '#f8fafc',
+              fontSize: '0.875rem'
+            }}
+          />
+          <button onClick={() => setStartDate('')} style={{
             padding: '0.5rem 1rem', borderRadius: '8px', border: 'none',
             background: 'linear-gradient(135deg, #06d6a0, #118ab2)', color: 'white', cursor: 'pointer'
-          }}>本周</button>
-          <button onClick={() => setWeekOffset(w => w + 1)} style={{
+          }}>今天</button>
+          <button onClick={exportToExcel} style={{
             padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.2)',
             background: 'transparent', color: '#94a3b8', cursor: 'pointer'
-          }}>下周 →</button>
+          }}>导出Excel</button>
         </div>
       </div>
 
@@ -150,16 +189,20 @@ export function StaffAssignmentPanel() {
           <thead>
             <tr style={{ position: 'sticky', top: 0, zIndex: 10, background: 'rgba(30, 41, 59, 0.95)' }}>
               <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem', width: '100px', position: 'sticky', left: 0, background: 'rgba(30, 41, 59, 0.95)' }}>姓名</th>
-              {weekDates.map((date, i) => (
-                <th key={date} style={{
-                  padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem',
-                  color: i >= 5 ? '#fbbf24' : '#94a3b8',
-                  background: i >= 5 ? 'rgba(251, 191, 36, 0.1)' : 'transparent'
-                }}>
-                  <div>{dayNames[i]}</div>
-                  <div style={{ fontSize: '0.7rem', marginTop: '0.25rem' }}>{date}</div>
-                </th>
-              ))}
+              {weekDates.map((date) => {
+                const d = new Date(date);
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                return (
+                  <th key={date} style={{
+                    padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem',
+                    color: isWeekend ? '#fbbf24' : '#94a3b8',
+                    background: isWeekend ? 'rgba(251, 191, 36, 0.1)' : 'transparent'
+                  }}>
+                    <div>{getDayName(date)}</div>
+                    <div style={{ fontSize: '0.7rem', marginTop: '0.25rem' }}>{date}</div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -174,10 +217,12 @@ export function StaffAssignmentPanel() {
                     <span style={{ fontSize: '0.625rem', color: '#64748b' }}>L{user.level}</span>
                   </div>
                 </td>
-                {weekDates.map((date, i) => {
+                {weekDates.map((date) => {
                   const assignment = getAssignment(user.id, date);
                   const assignmentList = assignment?.assignments || [];
                   const isEditing = editingCell?.userId === user.id && editingCell?.date === date;
+                  const d = new Date(date);
+                  const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
                   return (
                     <td
@@ -187,7 +232,7 @@ export function StaffAssignmentPanel() {
                         padding: '0.25rem',
                         textAlign: 'center',
                         cursor: canEdit ? 'pointer' : 'default',
-                        background: i >= 5 ? 'rgba(251, 191, 36, 0.05)' : 'transparent',
+                        background: isWeekend ? 'rgba(251, 191, 36, 0.05)' : 'transparent',
                         position: 'relative',
                       }}
                     >
@@ -208,11 +253,13 @@ export function StaffAssignmentPanel() {
                               }}
                               onDoubleClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteAssignment(user.id, date, idx);
+                                if (canEdit) handleDeleteAssignment(user.id, date, idx);
                               }}
                               >
-                                <div style={{ fontWeight: 500 }}>{getProjectName(a.projectId, a.customProjectName)}</div>
-                                <div style={{ opacity: 0.8 }}>({a.location})</div>
+                                <div style={{ fontWeight: 500 }}>
+                                  {getProjectName(a.projectId, a.customProjectName)}
+                                  <span style={{ marginLeft: '0.25rem', opacity: 0.8 }}>({a.location})</span>
+                                </div>
                               </div>
                             );
                           })}

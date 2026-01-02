@@ -177,12 +177,12 @@ export const initialTimesheets: TimesheetEntry[] = [
   { id: 't4', userId: 'pm1', projectId: 'p9', startDate: '2025-12-20', endDate: '2025-12-24', totalHours: 32, location: '北京', status: 'approved', approvalInfo: { approverId: 'head1', approverName: '章怡', approvalDate: '2025-12-25', comment: '' } },
 ];
 
-// 差旅报销数据（新格式）
+// 差旅报销数据（新格式：报销人→执行负责人→秘书→部门负责人）
 export const initialExpenses: ExpenseEntry[] = [
   { id: 'e1', projectId: 'p9', userId: 'u1', date: '2025-12-23', category: '高铁', amount: 553, description: '北京-深圳', status: 'pending' },
-  { id: 'e2', projectId: 'p9', userId: 'u1', date: '2025-12-23', category: '住宿', amount: 480, description: '深圳酒店', status: 'user_confirmed', userConfirmation: { confirmed: true, date: '2025-12-24' } },
-  { id: 'e3', projectId: 'p10', userId: 'u3', date: '2025-12-24', category: '飞机', amount: 1200, description: '北京-深圳', status: 'executor_approved', userConfirmation: { confirmed: true, date: '2025-12-24' }, executorApproval: { approved: true, date: '2025-12-25', approverId: 'pm1', comment: '同意报销' } },
-  { id: 'e4', projectId: 'p9', userId: 'u2', date: '2025-12-25', category: '打车', amount: 85, description: '机场到客户', status: 'approved', userConfirmation: { confirmed: true, date: '2025-12-25' }, executorApproval: { approved: true, date: '2025-12-26', approverId: 'pm2', comment: '' }, headApproval: { approved: true, date: '2025-12-27', approverId: 'head1', comment: '' } },
+  { id: 'e2', projectId: 'p9', userId: 'u1', date: '2025-12-23', category: '住宿', amount: 480, description: '深圳酒店', status: 'executor_approved', executorApproval: { approved: true, date: '2025-12-24', approverId: 'pm1', comment: '同意' } },
+  { id: 'e3', projectId: 'p10', userId: 'u3', date: '2025-12-24', category: '飞机', amount: 1200, description: '北京-深圳', status: 'secretary_approved', executorApproval: { approved: true, date: '2025-12-25', approverId: 'pm1', comment: '同意报销' }, secretaryApproval: { approved: true, date: '2025-12-26', approverId: 'sec1', comment: '已核实' } },
+  { id: 'e4', projectId: 'p9', userId: 'u2', date: '2025-12-25', category: '打车', amount: 85, description: '机场到客户', status: 'approved', executorApproval: { approved: true, date: '2025-12-26', approverId: 'pm2', comment: '' }, secretaryApproval: { approved: true, date: '2025-12-26', approverId: 'sec1', comment: '' }, headApproval: { approved: true, date: '2025-12-27', approverId: 'head1', comment: '' } },
   { id: 'e5', projectId: 'p10', userId: 'u3', date: '2025-12-26', category: '餐费', amount: 120, description: '工作餐', status: 'pending' },
 ];
 

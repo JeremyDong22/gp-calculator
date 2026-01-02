@@ -1,5 +1,5 @@
-// v3.2 - 咨询部项目管理系统数据上下文
-// 更新：新增项目控制表 projectControls 状态和CRUD操作
+// v3.3 - 咨询部项目管理系统数据上下文
+// 更新：差旅报销审核流程改为四级（报销人→执行负责人→秘书→部门负责人）
 import { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { TimesheetEntry, ExpenseEntry, Project, User, StaffAssignment, CashReceipt, ExecutorColorConfig, ProjectControlEntry } from '../types';
@@ -27,8 +27,8 @@ interface DataContextType {
   addExpense: (entry: Omit<ExpenseEntry, 'id' | 'status'>) => void;
   updateExpense: (id: string, updates: Partial<ExpenseEntry>) => void;
   deleteExpense: (id: string) => void;
-  confirmExpense: (id: string) => void;
   approveExpenseByExecutor: (id: string, approverId: string, comment: string) => void;
+  approveExpenseBySecretary: (id: string, approverId: string, comment: string) => void;
   approveExpenseByHead: (id: string, approverId: string, comment: string) => void;
   rejectExpense: (id: string, approverId: string, comment: string) => void;
 
@@ -136,19 +136,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setExpenses(prev => prev.filter(e => e.id !== id));
   };
 
-  const confirmExpense = (id: string) => {
-    setExpenses(prev => prev.map(e => e.id === id ? {
-      ...e,
-      status: 'user_confirmed',
-      userConfirmation: { confirmed: true, date: new Date().toISOString().split('T')[0] }
-    } : e));
-  };
-
   const approveExpenseByExecutor = (id: string, approverId: string, comment: string) => {
     setExpenses(prev => prev.map(e => e.id === id ? {
       ...e,
       status: 'executor_approved',
       executorApproval: { approved: true, date: new Date().toISOString().split('T')[0], approverId, comment }
+    } : e));
+  };
+
+  const approveExpenseBySecretary = (id: string, approverId: string, comment: string) => {
+    setExpenses(prev => prev.map(e => e.id === id ? {
+      ...e,
+      status: 'secretary_approved',
+      secretaryApproval: { approved: true, date: new Date().toISOString().split('T')[0], approverId, comment }
     } : e));
   };
 
@@ -330,7 +330,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider value={{
       timesheets, expenses, projects, users, assignments, cashReceipts, executorColors, projectControls,
       addTimesheet, updateTimesheet, deleteTimesheet, approveTimesheet, rejectTimesheet,
-      addExpense, updateExpense, deleteExpense, confirmExpense, approveExpenseByExecutor, approveExpenseByHead, rejectExpense,
+      addExpense, updateExpense, deleteExpense, approveExpenseByExecutor, approveExpenseBySecretary, approveExpenseByHead, rejectExpense,
       addProject, updateProject, deleteProject,
       addUser, updateUser, deleteUser, reorderUsers,
       addAssignment, updateAssignment, deleteAssignment,
