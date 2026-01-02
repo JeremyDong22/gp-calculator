@@ -1,5 +1,5 @@
-// v3.2 - 工时填报模块
-// 更新：使用dailyRate替代dailyWage、调整列顺序、秘书权限限制
+// v3.3 - 工时填报模块
+// 更新：添加修改/删除功能，权限控制（仅所有者或部门负责人可操作）
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -29,7 +29,7 @@ const thStyle: React.CSSProperties = {
 
 export function TimesheetPanel() {
   const { currentUser, isDepartmentHead, isProjectManager, isSecretary } = useAuth();
-  const { timesheets, projects, users, addTimesheet, updateTimesheetStatus } = useData();
+  const { timesheets, projects, users, addTimesheet, updateTimesheet, deleteTimesheet, updateTimesheetStatus } = useData();
 
   if (isSecretary) {
     return (
@@ -50,6 +50,7 @@ export function TimesheetPanel() {
     totalHours: '',
     location: '',
   });
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const canApprove = isDepartmentHead || isProjectManager;
 
@@ -69,15 +70,47 @@ export function TimesheetPanel() {
     e.preventDefault();
     if (!currentUser || !form.projectId || !form.startDate || !form.endDate || !form.totalHours) return;
 
-    addTimesheet({
-      userId: currentUser.id,
-      projectId: form.projectId,
-      startDate: form.startDate,
-      endDate: form.endDate,
-      totalHours: Number(form.totalHours),
-      location: form.location,
-    });
+    if (editingId) {
+      updateTimesheet(editingId, {
+        projectId: form.projectId,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        totalHours: Number(form.totalHours),
+        location: form.location,
+      });
+      setEditingId(null);
+    } else {
+      addTimesheet({
+        userId: currentUser.id,
+        projectId: form.projectId,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        totalHours: Number(form.totalHours),
+        location: form.location,
+      });
+    }
     setForm({ projectId: '', startDate: '', endDate: '', totalHours: '', location: '' });
+  };
+
+  const handleEdit = (t: TimesheetEntry) => {
+    setForm({
+      projectId: t.projectId,
+      startDate: t.startDate,
+      endDate: t.endDate,
+      totalHours: t.totalHours.toString(),
+      location: t.location || '',
+    });
+    setEditingId(t.id);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('确定删除此工时记录？')) {
+      deleteTimesheet(id);
+    }
+  };
+
+  const canModify = (t: TimesheetEntry) => {
+    return t.userId === currentUser?.id || isDepartmentHead;
   };
 
   const getUser = (id: string) => users.find(u => u.id === id);
@@ -146,18 +179,31 @@ export function TimesheetPanel() {
               <input type="text" style={inputStyle} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="北京" />
             </div>
           </div>
-          <button type="submit" style={{
-            marginTop: '0.75rem',
-            padding: '0.5rem 1.5rem',
-            borderRadius: '8px',
-            border: 'none',
-            background: 'linear-gradient(135deg, #06d6a0, #118ab2)',
-            color: 'white',
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}>
-            提交工时
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+            <button type="submit" style={{
+              padding: '0.5rem 1.5rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #06d6a0, #118ab2)',
+              color: 'white',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}>
+              {editingId ? '更新工时' : '提交工时'}
+            </button>
+            {editingId && (
+              <button type="button" onClick={() => { setEditingId(null); setForm({ projectId: '', startDate: '', endDate: '', totalHours: '', location: '' }); }} style={{
+                padding: '0.5rem 1.5rem',
+                borderRadius: '8px',
+                border: 'none',
+                background: 'rgba(148, 163, 184, 0.1)',
+                color: '#94a3b8',
+                cursor: 'pointer',
+              }}>
+                取消
+              </button>
+            )}
+          </div>
         </form>
       )}
 
@@ -207,24 +253,63 @@ export function TimesheetPanel() {
                   <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{getProject(t.projectId)?.projectShortName}</td>
                   <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{t.startDate}</td>
                   <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{t.endDate}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', color: '#06d6a0', fontWeight: 600 }}>{t.totalHours}h</td>
-                  <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{t.location || '-'}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right', color: '#06d6a0', fontWeight: 600 }}>
+                    {canModify(t) ? (
+                      <input
+                        type="number"
+                        value={t.totalHours}
+                        onChange={e => updateTimesheet(t.id, { totalHours: Number(e.target.value) })}
+                        style={{ ...inputStyle, fontSize: '0.875rem', padding: '0.25rem', textAlign: 'right', width: '60px' }}
+                        min="0.5"
+                        step="0.5"
+                      />
+                    ) : (
+                      <span>{t.totalHours}h</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.75rem', fontSize: '0.875rem' }}>
+                    {canModify(t) ? (
+                      <input
+                        type="text"
+                        value={t.location || ''}
+                        onChange={e => updateTimesheet(t.id, { location: e.target.value })}
+                        style={{ ...inputStyle, fontSize: '0.875rem', padding: '0.25rem' }}
+                        placeholder="地点"
+                      />
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>{t.location || '-'}</span>
+                    )}
+                  </td>
                   {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#fbbf24', fontSize: '0.875rem' }}>¥{(user?.dailyRate || 0).toLocaleString()}</td>}
                   {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#f87171', fontSize: '0.875rem' }}>¥{laborCost.toLocaleString()}</td>}
                   {canApprove && (
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                      {t.status === 'pending' && (
-                        <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
-                          <button onClick={() => updateTimesheetStatus(t.id, 'approved')} style={{
-                            background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)',
-                            color: '#34d399', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
-                          }}>批准</button>
-                          <button onClick={() => updateTimesheetStatus(t.id, 'rejected')} style={{
-                            background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                            color: '#f87171', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
-                          }}>拒绝</button>
-                        </div>
-                      )}
+                      <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        {t.status === 'pending' && (
+                          <>
+                            <button onClick={() => updateTimesheetStatus(t.id, 'approved')} style={{
+                              background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)',
+                              color: '#34d399', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
+                            }}>批准</button>
+                            <button onClick={() => updateTimesheetStatus(t.id, 'rejected')} style={{
+                              background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                              color: '#f87171', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
+                            }}>拒绝</button>
+                          </>
+                        )}
+                        {canModify(t) && (
+                          <>
+                            <button onClick={() => handleEdit(t)} style={{
+                              background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)',
+                              color: '#60a5fa', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
+                            }}>修改</button>
+                            <button onClick={() => handleDelete(t.id)} style={{
+                              background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                              color: '#f87171', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
+                            }}>删除</button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   )}
                   <td style={{ padding: '0.75rem', textAlign: 'center' }}><StatusBadge status={t.status} /></td>

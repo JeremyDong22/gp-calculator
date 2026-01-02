@@ -1,5 +1,5 @@
-// v3.1 - 项目建项模块
-// 更新：项目经理过滤（仅显示自己负责的项目）、负责人字段内联编辑
+// v3.2 - 项目建项模块
+// 更新：委托方、付款方、项目简称字段内联编辑
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -191,9 +191,27 @@ export function ProjectSetupPanel() {
           <tbody>
             {filteredProjects.map(p => (
               <tr key={p.id}>
-                <td style={{ ...tdStyle, color: '#f8fafc', fontWeight: 500 }}>{p.projectShortName}</td>
-                <td style={{ ...tdStyle, color: '#94a3b8' }}>{p.clientFullName}</td>
-                <td style={{ ...tdStyle, color: '#94a3b8' }}>{p.payer}</td>
+                <td style={tdStyle}>
+                  <input
+                    style={{ ...inputStyle, width: '120px' }}
+                    value={p.projectShortName}
+                    onChange={e => updateProject(p.id, { projectShortName: e.target.value })}
+                  />
+                </td>
+                <td style={tdStyle}>
+                  <input
+                    style={{ ...inputStyle, width: '150px' }}
+                    value={p.clientFullName}
+                    onChange={e => updateProject(p.id, { clientFullName: e.target.value })}
+                  />
+                </td>
+                <td style={tdStyle}>
+                  <input
+                    style={{ ...inputStyle, width: '120px' }}
+                    value={p.payer}
+                    onChange={e => updateProject(p.id, { payer: e.target.value })}
+                  />
+                </td>
                 <td style={{ ...tdStyle, textAlign: 'right', color: '#06d6a0' }}>¥{formatNumber(p.contractAmount)}</td>
                 {isDepartmentHead && (
                   <td style={{ ...tdStyle, textAlign: 'right', color: '#fbbf24' }}>¥{formatNumber(p.confirmedReceipt)}</td>

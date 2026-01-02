@@ -1,5 +1,5 @@
-// v3.2 - 现金收款表模块
-// 更新：权限修正（canViewCashReceipt）、字段级权限（执行负责人编辑部门确认收款，部门负责人编辑其他字段）
+// v3.3 - 现金收款表模块
+// 更新：添加按执行负责人汇总表
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -89,6 +89,28 @@ export function CashReceiptPanel() {
       adjustedReceipt: acc.adjustedReceipt + r.adjustedReceipt,
     }), { financeReceipt: 0, confirmedReceipt: 0, developmentSplit: 0, departmentSplit: 0, otherSplit: 0, adjustedReceipt: 0 });
   }, [cashReceipts]);
+
+  // 按执行负责人汇总
+  const executorSummary = useMemo(() => {
+    const summary = new Map<string, { name: string; financeReceipt: number; confirmedReceipt: number; developmentSplit: number; departmentSplit: number; otherSplit: number; adjustedReceipt: number }>();
+    cashReceipts.forEach(r => {
+      const executor = getUser(r.executionLeaderId);
+      const project = getProject(r.projectId);
+      const name = executor?.name || project?.executionLeaderName || '未知';
+      const key = r.executionLeaderId || 'unknown';
+      const existing = summary.get(key) || { name, financeReceipt: 0, confirmedReceipt: 0, developmentSplit: 0, departmentSplit: 0, otherSplit: 0, adjustedReceipt: 0 };
+      summary.set(key, {
+        name,
+        financeReceipt: existing.financeReceipt + r.financeReceipt,
+        confirmedReceipt: existing.confirmedReceipt + r.confirmedReceipt,
+        developmentSplit: existing.developmentSplit + r.developmentSplit,
+        departmentSplit: existing.departmentSplit + r.departmentSplit,
+        otherSplit: existing.otherSplit + r.otherSplit,
+        adjustedReceipt: existing.adjustedReceipt + r.adjustedReceipt,
+      });
+    });
+    return Array.from(summary.values());
+  }, [cashReceipts, users, projects]);
 
   const exportToExcel = () => {
     const headers = ['收款日期', '项目简称', '付款方', '执行负责人', '财务收款', '部门确认收款', '开发拆分', '部门拆分', '其他拆分', '调整后收款', '开票日期', '备注'];
@@ -317,6 +339,37 @@ export function CashReceiptPanel() {
               <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#fbbf24', fontWeight: 700 }}>¥{totals.adjustedReceipt.toLocaleString()}</td>
               <td colSpan={2}></td>
             </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* 按执行负责人汇总 */}
+      <div style={{ ...cardStyle, marginTop: '1rem' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#f8fafc', marginBottom: '1rem' }}>👥 按执行负责人汇总</h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={thStyle}>执行负责人</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>财务收款</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>部门确认</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>开发拆分</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>部门拆分</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>其他拆分</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>调整后收款</th>
+            </tr>
+          </thead>
+          <tbody>
+            {executorSummary.map((s, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                <td style={{ padding: '0.75rem 0.5rem', color: '#f8fafc', fontSize: '0.875rem' }}>{s.name}</td>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#3b82f6' }}>¥{s.financeReceipt.toLocaleString()}</td>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#06d6a0' }}>¥{s.confirmedReceipt.toLocaleString()}</td>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171' }}>¥{s.developmentSplit.toLocaleString()}</td>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171' }}>¥{s.departmentSplit.toLocaleString()}</td>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171' }}>¥{s.otherSplit.toLocaleString()}</td>
+                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#fbbf24', fontWeight: 600 }}>¥{s.adjustedReceipt.toLocaleString()}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

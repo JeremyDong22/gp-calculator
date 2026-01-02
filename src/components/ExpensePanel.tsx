@@ -1,5 +1,5 @@
-// v4.0 - 差旅报销模块
-// 更新：输入权限控制、费用比例显示、修改/删除功能、日期筛选、地点列、项目名可点击、列顺序调整
+// v4.1 - 差旅报销模块
+// 更新：执行负责人只能审批自己负责项目的费用
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -37,7 +37,7 @@ interface ExpensePanelProps {
 }
 
 export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
-  const { currentUser, isDepartmentHead, isProjectManager, isSecretary } = useAuth();
+  const { currentUser, isDepartmentHead, isProjectManager, isSecretary, isExecutionLeaderOf } = useAuth();
   const { expenses, projects, users, addExpense, updateExpense, deleteExpense, updateExpenseStatus } = useData();
   const [form, setForm] = useState({
     projectId: '',
@@ -171,7 +171,7 @@ export function ExpensePanel({ onNavigateToAssignment }: ExpensePanelProps) {
 
   const canApproveThis = (exp: ExpenseEntry) => {
     if (exp.status === 'pending' && exp.userId === currentUser?.id) return true;
-    if (exp.status === 'user_confirmed' && isProjectManager) return true;
+    if (exp.status === 'user_confirmed' && isProjectManager && isExecutionLeaderOf(exp.projectId, projects)) return true;
     if (exp.status === 'executor_approved' && isDepartmentHead) return true;
     if (isDepartmentHead && exp.status !== 'approved' && exp.status !== 'rejected') return true;
     return false;

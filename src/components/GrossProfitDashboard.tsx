@@ -1,6 +1,7 @@
-// v3.2 - 项目毛利分析模块
-// 更新：添加开始日期过滤、按完成日期范围过滤项目
+// v3.3 - 项目毛利分析模块
+// 更新：添加部门负责人权限控制
 import { useState, useMemo } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import type { ProjectGrossProfit } from '../types';
 
@@ -13,6 +14,7 @@ const cardStyle: React.CSSProperties = {
 };
 
 export function GrossProfitDashboard() {
+  const { isDepartmentHead } = useAuth();
   const { timesheets, expenses, projects, users } = useData();
   const [startDate, setStartDate] = useState('');
   const [cutoffDate, setCutoffDate] = useState('');
@@ -116,6 +118,10 @@ export function GrossProfitDashboard() {
       </span>
     );
   };
+
+  if (!isDepartmentHead) {
+    return <div style={cardStyle}><p style={{ color: '#94a3b8' }}>仅部门负责人有权限查看</p></div>;
+  }
 
   return (
     <div>

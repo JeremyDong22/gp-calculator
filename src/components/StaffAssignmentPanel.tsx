@@ -31,7 +31,7 @@ export function StaffAssignmentPanel() {
   const canEdit = isDepartmentHead || isProjectManager;
 
   const sortedUsers = useMemo(() => {
-    return [...users].sort((a, b) => a.level - b.level);
+    return [...users].sort((a, b) => b.level - a.level);
   }, [users]);
 
   const weekDates = useMemo(() => {
