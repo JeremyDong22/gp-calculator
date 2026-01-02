@@ -1,29 +1,65 @@
-// v2.1 - Premium expense panel with glass cards and file upload + responsive layout
-import { useState } from 'react';
+// v3.0 - 差旅报销模块
+// 更新：三级审批流程（项目负责人→部门秘书→部门负责人）、按项目-人-费用类型展示
+import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { projects, users } from '../data/mockData';
-import type { ExpenseEntry } from '../types';
+import type { ExpenseEntry, ExpenseCategory } from '../types';
 
-const categories: ExpenseEntry['category'][] = ['住宿', '餐饮', '打车', '高铁', '机票', '其他'];
+const categories: ExpenseCategory[] = ['住宿', '飞机', '高铁', '出租', '餐费', '其他'];
 const categoryIcons: Record<string, string> = {
-  '住宿': '🏨', '餐饮': '🍽️', '打车': '🚕', '高铁': '🚄', '机票': '✈️', '其他': '📦'
+  '住宿': '🏨', '飞机': '✈️', '高铁': '🚄', '出租': '🚕', '餐费': '🍽️', '其他': '📦'
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '0.5rem',
+  borderRadius: '6px',
+  border: '1px solid rgba(148, 163, 184, 0.2)',
+  background: 'rgba(15, 23, 42, 0.5)',
+  color: '#f8fafc',
+  fontSize: '0.8125rem',
 };
 
 export function ExpensePanel() {
-  const { currentUser } = useAuth();
-  const { expenses, addExpense, updateExpenseStatus } = useData();
-  const [form, setForm] = useState({ projectId: '', date: '', category: '' as ExpenseEntry['category'], amount: '', description: '', receiptUrl: '' });
+  const { currentUser, isDepartmentHead, isProjectManager, isSecretary } = useAuth();
+  const { expenses, projects, users, addExpense, updateExpenseStatus } = useData();
+  const [form, setForm] = useState({
+    projectId: '',
+    date: '',
+    category: '' as ExpenseCategory,
+    amount: '',
+    description: '',
+  });
+  const [viewMode, setViewMode] = useState<'list' | 'grouped'>('list');
 
-  const isLeader = currentUser?.role === 'leader';
-  const visibleExpenses = isLeader ? expenses : expenses.filter(e => e.userId === currentUser?.id);
+  const canApprove = isDepartmentHead || isProjectManager || isSecretary;
+  const isEmployee = currentUser?.role === 'employee' || currentUser?.role === 'intern';
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setForm({ ...form, receiptUrl: URL.createObjectURL(file) });
+  // 可见费用记录
+  const visibleExpenses = useMemo(() => {
+    if (isDepartmentHead) return expenses;
+    if (isProjectManager || isSecretary) {
+      return expenses.filter(e => {
+        const user = users.find(u => u.id === e.userId);
+        return e.userId === currentUser?.id || user?.role === 'employee' || user?.role === 'intern';
+      });
     }
-  };
+    return expenses.filter(e => e.userId === currentUser?.id);
+  }, [expenses, currentUser, isDepartmentHead, isProjectManager, isSecretary, users]);
+
+  // 按项目-人-类型分组
+  const groupedExpenses = useMemo(() => {
+    const grouped: Record<string, Record<string, Record<string, ExpenseEntry[]>>> = {};
+    visibleExpenses.forEach(e => {
+      const projectName = projects.find(p => p.id === e.projectId)?.projectName || '未知项目';
+      const userName = users.find(u => u.id === e.userId)?.name || '未知';
+      if (!grouped[projectName]) grouped[projectName] = {};
+      if (!grouped[projectName][userName]) grouped[projectName][userName] = {};
+      if (!grouped[projectName][userName][e.category]) grouped[projectName][userName][e.category] = [];
+      grouped[projectName][userName][e.category].push(e);
+    });
+    return grouped;
+  }, [visibleExpenses, projects, users]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,297 +71,212 @@ export function ExpensePanel() {
       category: form.category,
       amount: Number(form.amount),
       description: form.description,
-      receiptUrl: form.receiptUrl || '/no-receipt.jpg',
     });
-    setForm({ projectId: '', date: '', category: '' as ExpenseEntry['category'], amount: '', description: '', receiptUrl: '' });
+    setForm({ projectId: '', date: '', category: '' as ExpenseCategory, amount: '', description: '' });
+  };
+
+  // 审批逻辑：根据当前状态和角色决定下一步
+  const handleApprove = (exp: ExpenseEntry) => {
+    if (exp.status === 'pending' && isProjectManager) {
+      updateExpenseStatus(exp.id, 'pm_approved');
+    } else if (exp.status === 'pm_approved' && isSecretary) {
+      updateExpenseStatus(exp.id, 'secretary_approved');
+    } else if (exp.status === 'secretary_approved' && isDepartmentHead) {
+      updateExpenseStatus(exp.id, 'approved');
+    }
+  };
+
+  const canApproveThis = (exp: ExpenseEntry) => {
+    if (exp.status === 'pending' && isProjectManager) return true;
+    if (exp.status === 'pm_approved' && isSecretary) return true;
+    if (exp.status === 'secretary_approved' && isDepartmentHead) return true;
+    if (isDepartmentHead && (exp.status === 'pending' || exp.status === 'pm_approved' || exp.status === 'secretary_approved')) return true;
+    return false;
   };
 
   const getUser = (id: string) => users.find(u => u.id === id);
   const getProject = (id: string) => projects.find(p => p.id === id);
 
-  const StatusBadge = ({ status }: { status: string }) => {
-    const styles: Record<string, { bg: string; color: string; border: string; label: string }> = {
-      pending: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: 'rgba(245, 158, 11, 0.3)', label: '⏳ 待审核' },
-      approved: { bg: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: 'rgba(16, 185, 129, 0.3)', label: '✓ 已批准' },
-      rejected: { bg: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: 'rgba(239, 68, 68, 0.3)', label: '✗ 已拒绝' },
+  const StatusBadge = ({ status }: { status: ExpenseEntry['status'] }) => {
+    const styles: Record<string, { bg: string; color: string; label: string }> = {
+      pending: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', label: '待项目负责人审批' },
+      pm_approved: { bg: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', label: '待秘书审批' },
+      secretary_approved: { bg: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', label: '待部门负责人审批' },
+      approved: { bg: 'rgba(16, 185, 129, 0.15)', color: '#34d399', label: '✓ 已批准' },
+      rejected: { bg: 'rgba(239, 68, 68, 0.15)', color: '#f87171', label: '✗ 已拒绝' },
     };
     const s = styles[status];
     return (
-      <span style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '0.375rem 0.75rem',
-        borderRadius: '20px',
-        fontSize: '0.8125rem',
-        fontWeight: 500,
-        background: s.bg,
-        color: s.color,
-        border: `1px solid ${s.border}`,
-      }}>
+      <span style={{ padding: '0.25rem 0.5rem', borderRadius: '12px', fontSize: '0.7rem', background: s.bg, color: s.color }}>
         {s.label}
       </span>
     );
   };
 
   return (
-    <div style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: '#f8fafc' }}>
-          ✈️ 差旅报销
-        </h2>
-        <p style={{ color: '#64748b', marginTop: '0.25rem', fontSize: '0.9375rem' }}>
-          {isLeader ? '审核团队成员的差旅费用' : '提交您的差旅费用报销申请'}
-        </p>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f8fafc' }}>✈️ 差旅报销</h2>
+          <p style={{ color: '#64748b', fontSize: '0.875rem' }}>
+            {canApprove ? '三级审批：项目负责人 → 部门秘书 → 部门负责人' : '提交差旅费用报销申请'}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={() => setViewMode('list')} style={{
+            padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+            background: viewMode === 'list' ? 'linear-gradient(135deg, #06d6a0, #118ab2)' : 'rgba(148, 163, 184, 0.1)',
+            color: viewMode === 'list' ? 'white' : '#94a3b8',
+          }}>列表</button>
+          <button onClick={() => setViewMode('grouped')} style={{
+            padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+            background: viewMode === 'grouped' ? 'linear-gradient(135deg, #06d6a0, #118ab2)' : 'rgba(148, 163, 184, 0.1)',
+            color: viewMode === 'grouped' ? 'white' : '#94a3b8',
+          }}>分组</button>
+        </div>
       </div>
 
-      {/* Form for employees */}
-      {!isLeader && (
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            background: 'rgba(26, 34, 52, 0.7)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(148, 163, 184, 0.1)',
-            borderRadius: '16px',
-            padding: '1.5rem',
-            marginBottom: '1.5rem',
-          }}
-        >
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: '1rem',
-            marginBottom: '1rem',
-          }}>
+      {/* 填报表单 */}
+      {isEmployee && (
+        <form onSubmit={handleSubmit} style={{
+          background: 'rgba(30, 41, 59, 0.5)',
+          borderRadius: '12px',
+          border: '1px solid rgba(148, 163, 184, 0.1)',
+          padding: '1rem',
+          marginBottom: '1rem',
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', color: '#94a3b8', marginBottom: '0.5rem' }}>
-                项目
-              </label>
-              <select
-                value={form.projectId}
-                onChange={e => setForm({ ...form, projectId: e.target.value })}
-                required
-                style={{ width: '100%' }}
-              >
-                <option value="">选择项目</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>项目</label>
+              <select style={inputStyle} value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} required>
+                <option value="">选择</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.projectName}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', color: '#94a3b8', marginBottom: '0.5rem' }}>
-                日期
-              </label>
-              <input
-                type="date"
-                value={form.date}
-                onChange={e => setForm({ ...form, date: e.target.value })}
-                required
-                style={{ width: '100%' }}
-              />
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>报销日期</label>
+              <input type="date" style={inputStyle} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', color: '#94a3b8', marginBottom: '0.5rem' }}>
-                费用类型
-              </label>
-              <select
-                value={form.category}
-                onChange={e => setForm({ ...form, category: e.target.value as ExpenseEntry['category'] })}
-                required
-                style={{ width: '100%' }}
-              >
-                <option value="">选择类型</option>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>费用类型</label>
+              <select style={inputStyle} value={form.category} onChange={e => setForm({ ...form, category: e.target.value as ExpenseCategory })} required>
+                <option value="">选择</option>
                 {categories.map(c => <option key={c} value={c}>{categoryIcons[c]} {c}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', color: '#94a3b8', marginBottom: '0.5rem' }}>
-                金额 (元)
-              </label>
-              <input
-                type="number"
-                placeholder="0.00"
-                value={form.amount}
-                onChange={e => setForm({ ...form, amount: e.target.value })}
-                min="0"
-                step="0.01"
-                required
-                style={{ width: '100%' }}
-              />
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>金额</label>
+              <input type="number" style={inputStyle} value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} min="0" step="0.01" required />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', color: '#94a3b8', marginBottom: '0.5rem' }}>
-                说明
-              </label>
-              <input
-                type="text"
-                placeholder="费用说明"
-                value={form.description}
-                onChange={e => setForm({ ...form, description: e.target.value })}
-                style={{ width: '100%' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', color: '#94a3b8', marginBottom: '0.5rem' }}>
-                上传凭证
-              </label>
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={handleFileChange}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '10px',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.875rem',
-                }}
-              />
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>说明</label>
+              <input type="text" style={inputStyle} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="费用说明" />
             </div>
           </div>
-          <button
-            type="submit"
-            style={{
-              background: 'linear-gradient(135deg, #06d6a0, #118ab2)',
-              color: '#0a0e17',
-              fontWeight: 600,
-              padding: '0.75rem 2rem',
-              borderRadius: '10px',
-              border: 'none',
-              cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(6, 214, 160, 0.3)',
-              transition: 'all 0.2s',
-            }}
-          >
+          <button type="submit" style={{
+            marginTop: '0.75rem', padding: '0.5rem 1.5rem', borderRadius: '8px', border: 'none',
+            background: 'linear-gradient(135deg, #06d6a0, #118ab2)', color: 'white', fontWeight: 500, cursor: 'pointer',
+          }}>
             提交报销
           </button>
         </form>
       )}
 
-      {/* Table */}
-      <div style={{
-        background: 'rgba(26, 34, 52, 0.7)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(148, 163, 184, 0.1)',
-        borderRadius: '16px',
-        overflow: 'auto',
-        WebkitOverflowScrolling: 'touch',
-      }}>
-        <table style={{ minWidth: '700px' }}>
-          <thead>
-            <tr>
-              <th>日期</th>
-              <th>员工</th>
-              <th>项目</th>
-              <th>类型</th>
-              <th>金额</th>
-              <th>说明</th>
-              <th>凭证</th>
-              <th>状态</th>
-              {isLeader && <th>操作</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {visibleExpenses.map(exp => (
-              <tr key={exp.id}>
-                <td style={{ color: '#f8fafc', fontWeight: 500 }}>{exp.date}</td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, #06d6a0, #10b981)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: 'white',
-                    }}>
-                      {getUser(exp.userId)?.name.charAt(0)}
-                    </div>
-                    {getUser(exp.userId)?.name}
-                  </div>
-                </td>
-                <td>{getProject(exp.projectId)?.name}</td>
-                <td>
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    padding: '0.25rem 0.5rem',
-                    background: 'rgba(124, 58, 237, 0.15)',
-                    borderRadius: '6px',
-                    fontSize: '0.8125rem',
-                  }}>
-                    {categoryIcons[exp.category]} {exp.category}
-                  </span>
-                </td>
-                <td>
-                  <span style={{ color: '#f8fafc', fontWeight: 600 }}>¥{exp.amount.toLocaleString()}</span>
-                </td>
-                <td>{exp.description}</td>
-                <td>
-                  {exp.receiptUrl && (
-                    <a
-                      href={exp.receiptUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{
-                        color: '#06d6a0',
-                        textDecoration: 'none',
-                        fontSize: '0.875rem',
-                      }}
-                    >
-                      📎 查看
-                    </a>
-                  )}
-                </td>
-                <td><StatusBadge status={exp.status} /></td>
-                {isLeader && (
-                  <td>
-                    {exp.status === 'pending' && (
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button
-                          onClick={() => updateExpenseStatus(exp.id, 'approved')}
-                          style={{
-                            background: 'rgba(16, 185, 129, 0.15)',
-                            border: '1px solid rgba(16, 185, 129, 0.3)',
-                            color: '#34d399',
-                            padding: '0.375rem 0.75rem',
-                            borderRadius: '8px',
-                            fontSize: '0.8125rem',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          批准
-                        </button>
-                        <button
-                          onClick={() => updateExpenseStatus(exp.id, 'rejected')}
-                          style={{
-                            background: 'rgba(239, 68, 68, 0.15)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            color: '#f87171',
-                            padding: '0.375rem 0.75rem',
-                            borderRadius: '8px',
-                            fontSize: '0.8125rem',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          拒绝
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                )}
+      {/* 列表视图 */}
+      {viewMode === 'list' && (
+        <div style={{
+          background: 'rgba(30, 41, 59, 0.5)',
+          borderRadius: '12px',
+          border: '1px solid rgba(148, 163, 184, 0.1)',
+          overflow: 'auto',
+        }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.1)' }}>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>报销日期</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>员工</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>项目</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>类型</th>
+                <th style={{ padding: '0.75rem', textAlign: 'right', color: '#94a3b8', fontSize: '0.75rem' }}>金额</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', color: '#94a3b8', fontSize: '0.75rem' }}>说明</th>
+                <th style={{ padding: '0.75rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>状态</th>
+                {canApprove && <th style={{ padding: '0.75rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>操作</th>}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {visibleExpenses.map(exp => (
+                <tr key={exp.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
+                  <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{exp.date}</td>
+                  <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{getUser(exp.userId)?.name}</td>
+                  <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{getProject(exp.projectId)?.projectName}</td>
+                  <td style={{ padding: '0.75rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', background: 'rgba(124, 58, 237, 0.15)', borderRadius: '6px', fontSize: '0.75rem' }}>
+                      {categoryIcons[exp.category]} {exp.category}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right', color: '#f8fafc', fontWeight: 600 }}>¥{exp.amount.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem', color: '#64748b', fontSize: '0.875rem' }}>{exp.description || '-'}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center' }}><StatusBadge status={exp.status} /></td>
+                  {canApprove && (
+                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                      {canApproveThis(exp) && (
+                        <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                          <button onClick={() => handleApprove(exp)} style={{
+                            background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)',
+                            color: '#34d399', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
+                          }}>批准</button>
+                          <button onClick={() => updateExpenseStatus(exp.id, 'rejected')} style={{
+                            background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#f87171', padding: '0.25rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
+                          }}>拒绝</button>
+                        </div>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* 分组视图 */}
+      {viewMode === 'grouped' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {Object.entries(groupedExpenses).map(([projectName, userGroups]) => (
+            <div key={projectName} style={{
+              background: 'rgba(30, 41, 59, 0.5)',
+              borderRadius: '12px',
+              border: '1px solid rgba(148, 163, 184, 0.1)',
+              padding: '1rem',
+            }}>
+              <h3 style={{ color: '#06d6a0', fontSize: '1rem', marginBottom: '0.75rem' }}>📁 {projectName}</h3>
+              {Object.entries(userGroups).map(([userName, categoryGroups]) => (
+                <div key={userName} style={{ marginLeft: '1rem', marginBottom: '0.75rem' }}>
+                  <h4 style={{ color: '#f8fafc', fontSize: '0.875rem', marginBottom: '0.5rem' }}>👤 {userName}</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginLeft: '1rem' }}>
+                    {Object.entries(categoryGroups).map(([category, items]) => {
+                      const total = items.reduce((sum, e) => sum + e.amount, 0);
+                      return (
+                        <div key={category} style={{
+                          background: 'rgba(124, 58, 237, 0.1)',
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                        }}>
+                          <span>{categoryIcons[category]} {category}: </span>
+                          <span style={{ color: '#fbbf24', fontWeight: 600 }}>¥{total.toLocaleString()}</span>
+                          <span style={{ color: '#64748b' }}> ({items.length}笔)</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
