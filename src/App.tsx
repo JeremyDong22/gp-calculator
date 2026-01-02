@@ -1,5 +1,7 @@
-// v3.5 - 咨询部-项目管理系统（工时、报销）
-// 更新：ExpensePanel添加导航回调
+// v3.6 - 咨询部-项目管理系统（工时、报销）
+// 更新：添加版本号显示
+
+const APP_VERSION = 'v3.6-20250102';
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
@@ -94,7 +96,7 @@ function MainApp() {
             <h1 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
               咨询部-项目管理系统
             </h1>
-            <p style={{ fontSize: '0.6875rem', color: '#64748b', margin: 0 }}>工时、报销</p>
+            <p style={{ fontSize: '0.6875rem', color: '#64748b', margin: 0 }}>工时、报销 | {APP_VERSION}</p>
           </div>
         </div>
 
