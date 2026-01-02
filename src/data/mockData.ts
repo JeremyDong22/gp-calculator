@@ -226,8 +226,8 @@ export const initialExecutorColors: ExecutorColorConfig[] = [
 
 // 项目控制表初始数据
 export const initialProjectControls: ProjectControlEntry[] = [
-  { id: 'pc1', projectId: 'p1', executorId: 'pm4', clientContact: '张经理', contractSent: true, contractReceived: true, draftSent: true, finalSent: true, reportSent: true, invoiced: true, badDebt: 0, teamMembers: '淮剑, 段志琴', remark: '', travelRemark: '' },
-  { id: 'pc2', projectId: 'p2', executorId: 'pm4', clientContact: '李总', contractSent: true, contractReceived: true, draftSent: true, finalSent: true, reportSent: true, invoiced: true, badDebt: 0, teamMembers: '彭颖超', remark: '', travelRemark: '' },
-  { id: 'pc3', projectId: 'p9', executorId: 'pm2', clientContact: '王工', contractSent: true, contractReceived: false, draftSent: false, finalSent: false, reportSent: false, invoiced: false, badDebt: 0, teamMembers: '淮剑, 段志琴', remark: '进行中', travelRemark: '需出差' },
-  { id: 'pc4', projectId: 'p10', executorId: 'pm1', clientContact: '陈总监', contractSent: true, contractReceived: true, draftSent: false, finalSent: false, reportSent: false, invoiced: false, badDebt: 0, teamMembers: '彭颖超', remark: '进行中', travelRemark: '深圳出差' },
+  { id: 'pc1', projectId: 'p1', executorId: 'pm4', clientContact: '张经理', projectType: '财务尽调', contractSent: true, contractReceived: true, reportStatus: '终稿', badDebt: 0, remark: '' },
+  { id: 'pc2', projectId: 'p2', executorId: 'pm4', clientContact: '李总', projectType: '财务尽调', contractSent: true, contractReceived: true, reportStatus: '终稿', badDebt: 0, remark: '' },
+  { id: 'pc3', projectId: 'p9', executorId: 'pm2', clientContact: '王工', projectType: 'GPDD+财务尽调', contractSent: true, contractReceived: false, reportStatus: 'N', badDebt: 0, remark: '进行中' },
+  { id: 'pc4', projectId: 'p10', executorId: 'pm1', clientContact: '陈总监', projectType: 'GPDD', contractSent: true, contractReceived: true, reportStatus: '初稿', badDebt: 0, remark: '进行中' },
 ];

@@ -130,23 +130,29 @@ export type ExecutorColorConfig = {
   color: string;               // 颜色值（如 #3B82F6）
 };
 
+// 项目类型
+export type ProjectType = '财务尽调' | 'GPDD' | 'GPDD+财务尽调' | '业务尽调' | '财务尽调+专项审计' | '其他';
+export const PROJECT_TYPE_OPTIONS: ProjectType[] = ['财务尽调', 'GPDD', 'GPDD+财务尽调', '业务尽调', '财务尽调+专项审计', '其他'];
+
+// 报告发出状态
+export type ReportStatus = 'N' | '初稿' | '终稿';
+export const REPORT_STATUS_OPTIONS: ReportStatus[] = ['N', '初稿', '终稿'];
+
 // 项目控制表条目（每个执行负责人一张表）
 export type ProjectControlEntry = {
   id: string;
   projectId: string;           // 关联项目ID
   executorId: string;          // 执行负责人ID（用于分表）
-  // 控制表独有字段
+  // 项目信息（手动维护）
   clientContact: string;       // 委托方联系人
-  contractSent: boolean;       // 合同已发出
-  contractReceived: boolean;   // 盖章合同已收回
-  draftSent: boolean;          // 初稿发出
-  finalSent: boolean;          // 终稿发出
-  reportSent: boolean;         // 报告发出
-  invoiced: boolean;           // 是否开票
-  badDebt: number;             // 坏账欠款金额
-  teamMembers: string;         // 小组成员（自动提取+可编辑）
+  projectType: ProjectType;    // 项目类型
+  // 合同信息（手动维护）
+  contractSent: boolean;       // 合同已经发出 Y/N
+  contractReceived: boolean;   // 盖章合同已经收回 Y/N
+  reportStatus: ReportStatus;  // 初版/终版报告发出 N/初稿/终稿
+  badDebt: number;             // 坏账
+  // 备注
   remark: string;              // 备注
-  travelRemark: string;        // 差旅备注
 };
 
 // 项目毛利分析

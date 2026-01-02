@@ -306,16 +306,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       projectId,
       executorId,
       clientContact: '',
+      projectType: '财务尽调',
       contractSent: false,
       contractReceived: false,
-      draftSent: false,
-      finalSent: false,
-      reportSent: false,
-      invoiced: false,
+      reportStatus: 'N',
       badDebt: 0,
-      teamMembers: '',
       remark: '',
-      travelRemark: '',
     };
     setProjectControls(prev => [...prev, newEntry]);
     return newEntry;
