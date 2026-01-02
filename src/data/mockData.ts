@@ -114,8 +114,8 @@ export const initialAssignments: StaffAssignment[] = [
 ];
 
 export const initialCashReceipts: CashReceipt[] = [
-  { id: 'cr1', projectId: 'p1', receiptDate: '2025-07-22', payer: '北京深势科技有限公司', projectManagerId: 'pm1', financeReceipt: 30000, departmentConfirmedReceipt: 30000, developmentSplit: 0, departmentSplit: 0, otherSplit: 0, adjustedReceipt: 30000, remark: '' },
-  { id: 'cr2', projectId: 'p2', receiptDate: '2025-08-01', payer: '浙江省金投科创母基金一', projectManagerId: 'pm1', financeReceipt: 50000, departmentConfirmedReceipt: 50000, developmentSplit: 0, departmentSplit: 0, otherSplit: 0, adjustedReceipt: 50000, remark: '' },
-  { id: 'cr3', projectId: 'p3', receiptDate: '2025-10-22', payer: '无锡泰华清森企业管理合伙', projectManagerId: 'pm1', financeReceipt: 240000, departmentConfirmedReceipt: 240000, developmentSplit: 0, departmentSplit: 0, otherSplit: 0, adjustedReceipt: 240000, remark: '分tax 4万' },
-  { id: 'cr4', projectId: 'p4', receiptDate: '2025-10-24', payer: '北京盈科壹号股权投资基金', projectManagerId: 'pm1', financeReceipt: 150000, departmentConfirmedReceipt: 150000, developmentSplit: 0, departmentSplit: 0, otherSplit: 0, adjustedReceipt: 150000, remark: '' },
+  { id: 'cr1', projectId: 'p1', date: '2025-07-22', amount: 30000, remark: '' },
+  { id: 'cr2', projectId: 'p2', date: '2025-08-01', amount: 50000, remark: '' },
+  { id: 'cr3', projectId: 'p3', date: '2025-10-22', amount: 240000, remark: '分tax 4万' },
+  { id: 'cr4', projectId: 'p4', date: '2025-10-24', amount: 150000, remark: '' },
 ];

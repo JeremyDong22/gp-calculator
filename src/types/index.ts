@@ -79,15 +79,8 @@ export type StaffAssignment = {
 export type CashReceipt = {
   id: string;
   projectId: string;
-  receiptDate: string;
-  payer: string;                    // 付款方
-  projectManagerId: string;         // 项目负责人
-  financeReceipt: number;           // 财务部的收款
-  departmentConfirmedReceipt: number; // 部门确认的收款（项目负责人可输入）
-  developmentSplit: number;         // 开发拆分
-  departmentSplit: number;          // 部门拆分
-  otherSplit: number;               // 其他拆分
-  adjustedReceipt: number;          // 调整后收款 = A - B - C - D
+  date: string;
+  amount: number;
   remark?: string;
 };
 

@@ -34,16 +34,16 @@ function MainApp() {
   const canManage = isDepartmentHead || isProjectManager;
 
   // 根据角色显示不同的Tab
-  const tabs: { id: Tab; label: string; icon: string; show: boolean }[] = [
-    { id: 'project', label: '项目建项', icon: '📁', show: canManage },
-    { id: 'staff', label: '人员建项', icon: '👥', show: isDepartmentHead },
-    { id: 'assignment', label: '人员安排', icon: '📅', show: canManage },
-    { id: 'timesheet', label: '工时填报', icon: '⏱️', show: true },
-    { id: 'expense', label: '差旅报销', icon: '✈️', show: true },
-    { id: 'gp', label: '项目毛利分析', icon: '📊', show: isDepartmentHead },
-    { id: 'bonus', label: '员工奖金计算', icon: '🎁', show: isDepartmentHead },
-    { id: 'cash', label: '现金收款表', icon: '💵', show: isDepartmentHead },
-    { id: 'profit', label: '部门利润表', icon: '📋', show: isDepartmentHead },
+  const tabs = [
+    { id: 'project' as Tab, label: '项目建项', icon: '📁', show: canManage },
+    { id: 'staff' as Tab, label: '人员建项', icon: '👥', show: isDepartmentHead },
+    { id: 'assignment' as Tab, label: '人员安排', icon: '📅', show: canManage },
+    { id: 'timesheet' as Tab, label: '工时填报', icon: '⏱️', show: true },
+    { id: 'expense' as Tab, label: '差旅报销', icon: '✈️', show: true },
+    { id: 'gp' as Tab, label: '项目毛利分析', icon: '📊', show: isDepartmentHead },
+    { id: 'bonus' as Tab, label: '员工奖金计算', icon: '🎁', show: isDepartmentHead },
+    { id: 'cash' as Tab, label: '现金收款表', icon: '💵', show: isDepartmentHead },
+    { id: 'profit' as Tab, label: '部门利润表', icon: '📋', show: isDepartmentHead },
   ].filter(t => t.show);
 
   const roleGradient = isDepartmentHead
