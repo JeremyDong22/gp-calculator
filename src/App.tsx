@@ -1,5 +1,5 @@
-// v3.3 - 咨询部-项目管理系统（工时、报销）
-// 更新：添加项目控制表Tab
+// v3.5 - 咨询部-项目管理系统（工时、报销）
+// 更新：ExpensePanel添加导航回调
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
@@ -15,9 +15,10 @@ import { CashReceiptPanel } from './components/CashReceiptPanel';
 import { ExecutorColorConfigPanel } from './components/ExecutorColorConfigPanel';
 import { TimesheetSummaryPanel } from './components/TimesheetSummaryPanel';
 import { ProjectControlPanel } from './components/ProjectControlPanel';
+import { BonusCalculationPanel } from './components/BonusCalculationPanel';
 import './index.css';
 
-type Tab = 'project' | 'staff' | 'assignment' | 'timesheet' | 'expense' | 'gp' | 'cash' | 'color' | 'summary' | 'control';
+type Tab = 'project' | 'staff' | 'assignment' | 'timesheet' | 'expense' | 'gp' | 'cash' | 'color' | 'summary' | 'control' | 'bonus';
 
 const roleLabels: Record<string, string> = {
   employee: '员工',
@@ -50,6 +51,7 @@ function MainApp() {
     { id: 'summary' as Tab, label: '工时汇总', icon: '📋', show: canManage },
     { id: 'control' as Tab, label: '项目控制表', icon: '📑', show: canManage },
     { id: 'gp' as Tab, label: '项目毛利分析', icon: '📊', show: isDepartmentHead },
+    { id: 'bonus' as Tab, label: '奖金计算表', icon: '💰', show: isDepartmentHead },
     { id: 'cash' as Tab, label: '现金收款表', icon: '💵', show: isDepartmentHead },
     { id: 'color' as Tab, label: '颜色配置', icon: '🎨', show: isDepartmentHead },
   ].filter(t => t.show);
@@ -214,10 +216,11 @@ function MainApp() {
         {activeTab === 'staff' && <StaffSetupPanel />}
         {activeTab === 'assignment' && <StaffAssignmentPanel />}
         {activeTab === 'timesheet' && <TimesheetPanel />}
-        {activeTab === 'expense' && <ExpensePanel />}
+        {activeTab === 'expense' && <ExpensePanel onNavigateToAssignment={() => setActiveTab('assignment')} />}
         {activeTab === 'summary' && <TimesheetSummaryPanel />}
         {activeTab === 'control' && <ProjectControlPanel />}
         {activeTab === 'gp' && <GrossProfitDashboard />}
+        {activeTab === 'bonus' && <BonusCalculationPanel />}
         {activeTab === 'cash' && <CashReceiptPanel />}
         {activeTab === 'color' && <ExecutorColorConfigPanel />}
       </main>

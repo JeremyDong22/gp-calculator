@@ -1,6 +1,6 @@
-// v3.1 - 工时汇总表模块
-// 按项目和人员汇总已审核的工时记录，支持导出
-import { useMemo } from 'react';
+// v3.2 - 工时汇总表模块
+// 更新：修正权限检查为部门负责人或秘书、添加日期范围筛选
+import { useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 
@@ -10,6 +10,16 @@ const cardStyle: React.CSSProperties = {
   border: '1px solid rgba(148, 163, 184, 0.1)',
   padding: '1.5rem',
   marginBottom: '1rem',
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '0.5rem',
+  borderRadius: '6px',
+  border: '1px solid rgba(148, 163, 184, 0.2)',
+  background: 'rgba(15, 23, 42, 0.5)',
+  color: '#f8fafc',
+  fontSize: '0.8125rem',
 };
 
 const thStyle: React.CSSProperties = {
@@ -25,12 +35,23 @@ const thStyle: React.CSSProperties = {
 };
 
 export function TimesheetSummaryPanel() {
-  const { isDepartmentHead, isProjectManager } = useAuth();
+  const { isDepartmentHead, isSecretary } = useAuth();
   const { timesheets, projects, users } = useData();
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  // 汇总已审核的工时
+  // 汇总已审核的工时，支持日期筛选
   const summaryData = useMemo(() => {
-    const approved = timesheets.filter(t => t.status === 'approved');
+    let approved = timesheets.filter(t => t.status === 'approved');
+
+    // 日期筛选
+    if (startDate) {
+      approved = approved.filter(t => t.startDate >= startDate);
+    }
+    if (endDate) {
+      approved = approved.filter(t => t.endDate <= endDate);
+    }
+
     const grouped: Record<string, Record<string, number>> = {};
 
     approved.forEach(t => {
@@ -55,7 +76,7 @@ export function TimesheetSummaryPanel() {
     });
 
     return result.sort((a, b) => a.projectShortName.localeCompare(b.projectShortName) || a.userName.localeCompare(b.userName));
-  }, [timesheets, projects, users]);
+  }, [timesheets, projects, users, startDate, endDate]);
 
   // 按项目汇总
   const projectTotals = useMemo(() => {
@@ -81,8 +102,8 @@ export function TimesheetSummaryPanel() {
     a.click();
   };
 
-  if (!isDepartmentHead && !isProjectManager) {
-    return <div style={cardStyle}><p style={{ color: '#94a3b8' }}>仅项目负责人及以上有权限查看工时汇总表</p></div>;
+  if (!isDepartmentHead && !isSecretary) {
+    return <div style={cardStyle}><p style={{ color: '#94a3b8' }}>仅部门负责人和秘书有权限查看工时汇总表</p></div>;
   }
 
   return (
@@ -98,6 +119,26 @@ export function TimesheetSummaryPanel() {
         }}>
           📥 导出Excel
         </button>
+      </div>
+
+      {/* 日期筛选 */}
+      <div style={{
+        background: 'rgba(30, 41, 59, 0.5)',
+        borderRadius: '12px',
+        border: '1px solid rgba(148, 163, 184, 0.1)',
+        padding: '1rem',
+        marginBottom: '1rem',
+      }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>开始日期</label>
+            <input type="date" style={inputStyle} value={startDate} onChange={e => setStartDate(e.target.value)} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.25rem' }}>结束日期</label>
+            <input type="date" style={inputStyle} value={endDate} onChange={e => setEndDate(e.target.value)} />
+          </div>
+        </div>
       </div>
 
       {/* 汇总卡片 */}

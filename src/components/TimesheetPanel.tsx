@@ -1,5 +1,5 @@
-// v3.1 - 工时填报模块
-// 更新：使用startDate/endDate、totalHours、dailyWage计算人工成本
+// v3.2 - 工时填报模块
+// 更新：使用dailyRate替代dailyWage、调整列顺序、秘书权限限制
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -28,8 +28,21 @@ const thStyle: React.CSSProperties = {
 };
 
 export function TimesheetPanel() {
-  const { currentUser, isDepartmentHead, isProjectManager } = useAuth();
+  const { currentUser, isDepartmentHead, isProjectManager, isSecretary } = useAuth();
   const { timesheets, projects, users, addTimesheet, updateTimesheetStatus } = useData();
+
+  if (isSecretary) {
+    return (
+      <div style={{
+        background: 'rgba(30, 41, 59, 0.5)',
+        borderRadius: '12px',
+        border: '1px solid rgba(148, 163, 184, 0.1)',
+        padding: '1.5rem',
+      }}>
+        <p style={{ color: '#94a3b8' }}>秘书无权限访问此页面</p>
+      </div>
+    );
+  }
   const [form, setForm] = useState({
     projectId: '',
     startDate: '',
@@ -159,26 +172,25 @@ export function TimesheetPanel() {
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isDepartmentHead ? '900px' : '700px' }}>
           <thead>
             <tr>
-              <th style={thStyle}>项目</th>
-              <th style={thStyle}>员工</th>
+              <th style={thStyle}>姓名</th>
+              <th style={thStyle}>项目简称</th>
               <th style={thStyle}>开始日期</th>
               <th style={thStyle}>结束日期</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>累计工时</th>
               <th style={thStyle}>地点</th>
-              {isDepartmentHead && <th style={{ ...thStyle, textAlign: 'right' }}>日工资</th>}
+              {isDepartmentHead && <th style={{ ...thStyle, textAlign: 'right' }}>员工费率</th>}
               {isDepartmentHead && <th style={{ ...thStyle, textAlign: 'right' }}>人工成本</th>}
-              <th style={{ ...thStyle, textAlign: 'center' }}>状态</th>
               {canApprove && <th style={{ ...thStyle, textAlign: 'center' }}>操作</th>}
+              <th style={{ ...thStyle, textAlign: 'center' }}>状态</th>
             </tr>
           </thead>
           <tbody>
             {visibleTimesheets.map(t => {
               const user = getUser(t.userId);
-              // 人工成本 = 累计工时 × 日工资 ÷ 8
-              const laborCost = (t.totalHours * (user?.dailyWage || 0)) / 8;
+              // 人工成本 = 累计工时 × 员工费率 ÷ 8
+              const laborCost = (t.totalHours * (user?.dailyRate || 0)) / 8;
               return (
                 <tr key={t.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
-                  <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{getProject(t.projectId)?.projectShortName}</td>
                   <td style={{ padding: '0.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <div style={{
@@ -192,13 +204,13 @@ export function TimesheetPanel() {
                       <span style={{ color: '#f8fafc', fontSize: '0.875rem' }}>{user?.name}</span>
                     </div>
                   </td>
+                  <td style={{ padding: '0.75rem', color: '#f8fafc', fontSize: '0.875rem' }}>{getProject(t.projectId)?.projectShortName}</td>
                   <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{t.startDate}</td>
                   <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{t.endDate}</td>
                   <td style={{ padding: '0.75rem', textAlign: 'right', color: '#06d6a0', fontWeight: 600 }}>{t.totalHours}h</td>
                   <td style={{ padding: '0.75rem', color: '#94a3b8', fontSize: '0.875rem' }}>{t.location || '-'}</td>
-                  {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#fbbf24', fontSize: '0.875rem' }}>¥{(user?.dailyWage || 0).toLocaleString()}</td>}
+                  {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#fbbf24', fontSize: '0.875rem' }}>¥{(user?.dailyRate || 0).toLocaleString()}</td>}
                   {isDepartmentHead && <td style={{ padding: '0.75rem', textAlign: 'right', color: '#f87171', fontSize: '0.875rem' }}>¥{laborCost.toLocaleString()}</td>}
-                  <td style={{ padding: '0.75rem', textAlign: 'center' }}><StatusBadge status={t.status} /></td>
                   {canApprove && (
                     <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                       {t.status === 'pending' && (
@@ -215,6 +227,7 @@ export function TimesheetPanel() {
                       )}
                     </td>
                   )}
+                  <td style={{ padding: '0.75rem', textAlign: 'center' }}><StatusBadge status={t.status} /></td>
                 </tr>
               );
             })}

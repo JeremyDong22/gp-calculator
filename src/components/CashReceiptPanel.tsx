@@ -1,5 +1,5 @@
-// v3.1 - 现金收款表模块
-// 更新：使用新字段结构（receiptDate, financeReceipt, confirmedReceipt, 拆分字段等）
+// v3.2 - 现金收款表模块
+// 更新：权限修正（canViewCashReceipt）、字段级权限（执行负责人编辑部门确认收款，部门负责人编辑其他字段）
 import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -34,8 +34,8 @@ const thStyle: React.CSSProperties = {
 };
 
 export function CashReceiptPanel() {
-  const { isDepartmentHead } = useAuth();
-  const { cashReceipts, projects, users, addCashReceipt } = useData();
+  const { canViewCashReceipt, isDepartmentHead, isExecutionLeaderOf } = useAuth();
+  const { cashReceipts, projects, users, addCashReceipt, updateCashReceipt } = useData();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     projectId: '',
@@ -120,8 +120,8 @@ export function CashReceiptPanel() {
     a.click();
   };
 
-  if (!isDepartmentHead) {
-    return <div style={cardStyle}><p style={{ color: '#94a3b8' }}>仅部门负责人有权限查看现金收款表</p></div>;
+  if (!canViewCashReceipt) {
+    return <div style={cardStyle}><p style={{ color: '#94a3b8' }}>您没有权限查看现金收款表</p></div>;
   }
 
   return (
@@ -234,17 +234,73 @@ export function CashReceiptPanel() {
             {cashReceipts.map(r => {
               const project = getProject(r.projectId);
               const executor = getUser(r.executionLeaderId);
+              const isExecLead = isExecutionLeaderOf(r.projectId, projects);
               return (
                 <tr key={r.id} style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.05)' }}>
                   <td style={{ padding: '0.75rem 0.5rem', color: '#f8fafc', fontSize: '0.875rem' }}>{r.receiptDate}</td>
                   <td style={{ padding: '0.75rem 0.5rem', color: '#06d6a0', fontSize: '0.875rem' }}>{project?.projectShortName || '-'}</td>
                   <td style={{ padding: '0.75rem 0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>{r.payer}</td>
                   <td style={{ padding: '0.75rem 0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>{executor?.name || project?.executionLeaderName || '-'}</td>
-                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#3b82f6' }}>¥{r.financeReceipt.toLocaleString()}</td>
-                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#06d6a0' }}>¥{r.confirmedReceipt.toLocaleString()}</td>
-                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171' }}>¥{r.developmentSplit.toLocaleString()}</td>
-                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171' }}>¥{r.departmentSplit.toLocaleString()}</td>
-                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#f87171' }}>¥{r.otherSplit.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                    {isDepartmentHead ? (
+                      <input
+                        type="number"
+                        style={{ ...inputStyle, width: '100px', textAlign: 'right', color: '#3b82f6' }}
+                        value={r.financeReceipt}
+                        onChange={e => updateCashReceipt(r.id, { financeReceipt: Number(e.target.value) })}
+                      />
+                    ) : (
+                      <span style={{ color: '#3b82f6' }}>¥{r.financeReceipt.toLocaleString()}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                    {isExecLead ? (
+                      <input
+                        type="number"
+                        style={{ ...inputStyle, width: '100px', textAlign: 'right', color: '#06d6a0' }}
+                        value={r.confirmedReceipt}
+                        onChange={e => updateCashReceipt(r.id, { confirmedReceipt: Number(e.target.value) })}
+                      />
+                    ) : (
+                      <span style={{ color: '#06d6a0' }}>¥{r.confirmedReceipt.toLocaleString()}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                    {isDepartmentHead ? (
+                      <input
+                        type="number"
+                        style={{ ...inputStyle, width: '100px', textAlign: 'right', color: '#f87171' }}
+                        value={r.developmentSplit}
+                        onChange={e => updateCashReceipt(r.id, { developmentSplit: Number(e.target.value) })}
+                      />
+                    ) : (
+                      <span style={{ color: '#f87171' }}>¥{r.developmentSplit.toLocaleString()}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                    {isDepartmentHead ? (
+                      <input
+                        type="number"
+                        style={{ ...inputStyle, width: '100px', textAlign: 'right', color: '#f87171' }}
+                        value={r.departmentSplit}
+                        onChange={e => updateCashReceipt(r.id, { departmentSplit: Number(e.target.value) })}
+                      />
+                    ) : (
+                      <span style={{ color: '#f87171' }}>¥{r.departmentSplit.toLocaleString()}</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                    {isDepartmentHead ? (
+                      <input
+                        type="number"
+                        style={{ ...inputStyle, width: '100px', textAlign: 'right', color: '#f87171' }}
+                        value={r.otherSplit}
+                        onChange={e => updateCashReceipt(r.id, { otherSplit: Number(e.target.value) })}
+                      />
+                    ) : (
+                      <span style={{ color: '#f87171' }}>¥{r.otherSplit.toLocaleString()}</span>
+                    )}
+                  </td>
                   <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: '#fbbf24', fontWeight: 600 }}>¥{r.adjustedReceipt.toLocaleString()}</td>
                   <td style={{ padding: '0.75rem 0.5rem', color: '#94a3b8', fontSize: '0.875rem' }}>{r.invoiceDate || '-'}</td>
                   <td style={{ padding: '0.75rem 0.5rem', color: '#64748b', fontSize: '0.875rem' }}>{r.remark || '-'}</td>

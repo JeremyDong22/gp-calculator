@@ -1,5 +1,5 @@
-// v3.1 - 项目毛利分析模块
-// 更新：使用contractAmount代替revenue、projectShortName、人工成本=工时×日工资÷8
+// v3.2 - 项目毛利分析模块
+// 更新：添加开始日期过滤、按完成日期范围过滤项目
 import { useState, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import type { ProjectGrossProfit } from '../types';
@@ -14,10 +14,19 @@ const cardStyle: React.CSSProperties = {
 
 export function GrossProfitDashboard() {
   const { timesheets, expenses, projects, users } = useData();
+  const [startDate, setStartDate] = useState('');
   const [cutoffDate, setCutoffDate] = useState('');
 
   const calculateGP = useMemo((): ProjectGrossProfit[] => {
-    return projects.map(project => {
+    // 按完成日期过滤项目
+    const filteredProjects = projects.filter(project => {
+      if (!project.completionDate) return false;
+      if (startDate && project.completionDate < startDate) return false;
+      if (cutoffDate && project.completionDate > cutoffDate) return false;
+      return true;
+    });
+
+    return filteredProjects.map(project => {
       // 筛选已审核的工时记录
       const approvedTimesheets = timesheets.filter(t =>
         t.projectId === project.id &&
@@ -58,7 +67,7 @@ export function GrossProfitDashboard() {
         completionDate: project.completionDate,
       };
     });
-  }, [timesheets, expenses, projects, users, cutoffDate]);
+  }, [timesheets, expenses, projects, users, startDate, cutoffDate]);
 
   const totals = calculateGP.reduce((acc, gp) => ({
     contractRevenue: acc.contractRevenue + gp.contractRevenue,
@@ -116,6 +125,20 @@ export function GrossProfitDashboard() {
           <p style={{ color: '#64748b', fontSize: '0.875rem' }}>人工成本 = 累计工时 × 日工资 ÷ 8</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            style={{
+              padding: '0.5rem',
+              borderRadius: '8px',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
+              background: 'rgba(15, 23, 42, 0.5)',
+              color: '#f8fafc',
+              fontSize: '0.875rem',
+            }}
+            placeholder="开始日期"
+          />
           <input
             type="date"
             value={cutoffDate}

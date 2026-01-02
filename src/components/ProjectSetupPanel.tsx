@@ -1,5 +1,5 @@
-// v3.0 - 项目建项模块
-// 功能：付款方、项目简称、项目完成日期、项目状态(0-4)、千分位显示、负责人下拉+自定义输入、删除
+// v3.1 - 项目建项模块
+// 更新：项目经理过滤（仅显示自己负责的项目）、负责人字段内联编辑
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -61,7 +61,7 @@ const statusColors: Record<ProjectStatus, string> = {
 };
 
 export function ProjectSetupPanel() {
-  const { canCreateProject, isDepartmentHead } = useAuth();
+  const { canCreateProject, isDepartmentHead, isProjectManager, currentUser } = useAuth();
   const { projects, users, addProject, updateProject, deleteProject } = useData();
   const [showForm, setShowForm] = useState(false);
   const [customDevLeader, setCustomDevLeader] = useState('');
@@ -76,6 +76,11 @@ export function ProjectSetupPanel() {
     executionLeaderId: '',
     executionLeaderName: '',
   });
+
+  // 项目经理只能看到自己负责的项目
+  const filteredProjects = isProjectManager && !isDepartmentHead
+    ? projects.filter(p => p.developmentLeaderId === currentUser?.id || p.executionLeaderId === currentUser?.id)
+    : projects;
 
   // 可选为负责人的用户（项目负责人和部门负责人）
   const leaderCandidates = users.filter(u => u.role === 'project_manager' || u.role === 'department_head');
@@ -92,11 +97,6 @@ export function ProjectSetupPanel() {
     setCustomDevLeader('');
     setCustomExecLeader('');
     setShowForm(false);
-  };
-
-  const getLeaderName = (leaderId: string, leaderName?: string) => {
-    if (leaderId === 'custom' && leaderName) return leaderName;
-    return users.find(u => u.id === leaderId)?.name || '-';
   };
 
   const handleDelete = (id: string) => {
@@ -189,7 +189,7 @@ export function ProjectSetupPanel() {
             </tr>
           </thead>
           <tbody>
-            {projects.map(p => (
+            {filteredProjects.map(p => (
               <tr key={p.id}>
                 <td style={{ ...tdStyle, color: '#f8fafc', fontWeight: 500 }}>{p.projectShortName}</td>
                 <td style={{ ...tdStyle, color: '#94a3b8' }}>{p.clientFullName}</td>
@@ -198,8 +198,28 @@ export function ProjectSetupPanel() {
                 {isDepartmentHead && (
                   <td style={{ ...tdStyle, textAlign: 'right', color: '#fbbf24' }}>¥{formatNumber(p.confirmedReceipt)}</td>
                 )}
-                <td style={{ ...tdStyle, color: '#94a3b8' }}>{getLeaderName(p.developmentLeaderId, p.developmentLeaderName)}</td>
-                <td style={{ ...tdStyle, color: '#94a3b8' }}>{getLeaderName(p.executionLeaderId, p.executionLeaderName)}</td>
+                <td style={tdStyle}>
+                  <select
+                    style={{ ...inputStyle, width: '120px', color: '#94a3b8' }}
+                    value={p.developmentLeaderId}
+                    onChange={e => updateProject(p.id, { developmentLeaderId: e.target.value })}
+                  >
+                    <option value="">选择</option>
+                    {leaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    <option value="custom">{p.developmentLeaderId === 'custom' ? p.developmentLeaderName : '自定义...'}</option>
+                  </select>
+                </td>
+                <td style={tdStyle}>
+                  <select
+                    style={{ ...inputStyle, width: '120px', color: '#94a3b8' }}
+                    value={p.executionLeaderId}
+                    onChange={e => updateProject(p.id, { executionLeaderId: e.target.value })}
+                  >
+                    <option value="">选择</option>
+                    {leaderCandidates.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    <option value="custom">{p.executionLeaderId === 'custom' ? p.executionLeaderName : '自定义...'}</option>
+                  </select>
+                </td>
                 <td style={tdStyle}>
                   <select
                     style={{ ...inputStyle, width: '90px', color: statusColors[p.status] }}

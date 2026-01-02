@@ -82,6 +82,7 @@ export type ExpenseEntry = {
   projectId: string;           // 项目排在报销人左边
   userId: string;              // 报销人
   date: string;                // 报销日期
+  location?: string;           // 地点
   category: ExpenseCategory;
   amount: number;
   description: string;
